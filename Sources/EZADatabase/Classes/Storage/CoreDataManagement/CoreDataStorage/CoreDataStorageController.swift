@@ -138,12 +138,11 @@ extension CoreDataStorageController: CoreDataStorageInterface {
         return self.insert(object: object, predicate: predicate, context: self.backgroundContext!)
     }
     
-    func fetchedResultsProvider<Type: CoreDataCompatible>(_ type: Type.Type,
-                                                          mainPredicate: NSPredicate,
+    func fetchedResultsProvider<Type: CoreDataCompatible>(mainPredicate: NSPredicate,
                                                           optionalPredicates: [NSPredicate]?,
                                                           sorting sortDescriptors: [NSSortDescriptor],
                                                           sectionName: String?,
-                                                          fetchLimit: Int?) -> FetchedResultsProviderInterface
+                                                          fetchLimit: Int?) -> FetchedResultsProvider<Type>
     {
         return FetchedResultsProvider<Type>(mainPredicate,
                                             optionalPredicates: optionalPredicates,

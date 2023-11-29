@@ -20,10 +20,12 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
     
     static func deleteEntities(_ entity: WriteType.Type, predicate: NSPredicate?) -> AnyPublisher<Void, Error> {
         
-        return Future { promise in
-            CoreDataStorageController.shared.delete(WriteType.ManagedType.self, with: predicate) {
-                DispatchQueue.main.async {
-                    promise(.success(()))
+        return Deferred {
+            return Future { promise in
+                CoreDataStorageController.shared.delete(WriteType.ManagedType.self, with: predicate) {
+                    DispatchQueue.main.async {
+                        promise(.success(()))
+                    }
                 }
             }
         }
@@ -33,10 +35,12 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
     
     static func importRemoteList(_ objectsToImport: [WriteType?]) -> AnyPublisher<Void, Error> {
         
-        return Future { promise in
-            CoreDataStorageController.shared.insertList(objects: objectsToImport) {
-                DispatchQueue.main.async {
-                    promise(.success(()))
+        return Deferred {
+            return Future { promise in
+                CoreDataStorageController.shared.insertList(objects: objectsToImport) {
+                    DispatchQueue.main.async {
+                        promise(.success(()))
+                    }
                 }
             }
         }
@@ -46,10 +50,12 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
     
     static func updateRemote(_ objectToImport: WriteType?, predicate: NSPredicate?) -> AnyPublisher<Void, Error> {
         
-        return Future { promise in
-            CoreDataStorageController.shared.insertAsync(object: objectToImport, predicate: predicate) {
-                DispatchQueue.main.async {
-                    promise(.success(()))
+        return Deferred {
+            return Future { promise in
+                CoreDataStorageController.shared.insertAsync(object: objectToImport, predicate: predicate) {
+                    DispatchQueue.main.async {
+                        promise(.success(()))
+                    }
                 }
             }
         }
@@ -59,10 +65,12 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
     
     static func importValues(_ entity: WriteType.Type, predicate: NSPredicate?, values:  [String: Any]) -> AnyPublisher<Void, Error>  {
         
-        return Future { promise in
-            CoreDataStorageController.shared.setValues(type: entity, values: values, predicate: predicate) {
-                DispatchQueue.main.async {
-                    promise(.success(()))
+        return Deferred {
+            return Future { promise in
+                CoreDataStorageController.shared.setValues(type: entity, values: values, predicate: predicate) {
+                    DispatchQueue.main.async {
+                        promise(.success(()))
+                    }
                 }
             }
         }

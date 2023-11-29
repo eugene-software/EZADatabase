@@ -7,12 +7,23 @@
 
 import Foundation
 import CoreData
+import Combine
+import UIKit
 
-class FetchedResultsProvider<U: CoreDataCompatible>: NSObject, NSFetchedResultsControllerDelegate {
+public class FetchedResultsProvider<U: CoreDataCompatible>: NSObject {
+    
+    private var cancellables: [AnyCancellable] = []
     
     private var kDefaultFetchLimit: Int = 20
     
-    weak var delegate: FetchedResultsProviderDelegate?
+    private var classicFRCDelegate: ClassicFRCDelegate = ClassicFRCDelegate()
+    private var diffableFRCDelegate: DiffableFRCDelegate = DiffableFRCDelegate()
+    
+    public weak var delegate: FetchedResultsProviderDelegate? {
+        didSet {
+            fetchedResultsController?.delegate = classicFRCDelegate
+        }
+    }
     
     private var fetchedResultsController: NSFetchedResultsController<U.ManagedType>?
     private var mainPredicate: NSPredicate
@@ -21,6 +32,8 @@ class FetchedResultsProvider<U: CoreDataCompatible>: NSObject, NSFetchedResultsC
     private var sortDescriptors: [NSSortDescriptor]
     private var sectionName: String?
     private let context: NSManagedObjectContext
+    
+    public var diffableDataSourcePublisher: CurrentValueSubject<NSDiffableDataSourceSnapshot<String, U>?, Never> = .init(nil)
     
     init(_ mainPredicate: NSPredicate,
          optionalPredicates: [NSPredicate]?,
@@ -37,59 +50,16 @@ class FetchedResultsProvider<U: CoreDataCompatible>: NSObject, NSFetchedResultsC
         self.context = context
         super.init()
         
+        observeClassicFRCDelegate()
+        observeDiffableFRCDelegate()
         reloadFetchController()
-    }
-    
-    
-    //  MARK: - NSFetchedResultsControllerDelegate
-    
-    func controllerWillChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
-        delegate?.willUpdateList()
-    }
-    
-    func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
-        delegate?.didUpdateList()
-    }
-    
-    func controller(_ controller: NSFetchedResultsController<NSFetchRequestResult>, didChange anObject: Any, at indexPath: IndexPath?, for type: NSFetchedResultsChangeType, newIndexPath: IndexPath?) {
-
-        switch type {
-        case .insert:
-            delegate?.insertObject(at: newIndexPath)
-        case .delete:
-            delegate?.deleteObject(at: indexPath)
-        case .move:
-            if indexPath == newIndexPath {
-                delegate?.updateObject(at: indexPath)
-            } else {
-                delegate?.moveObject(from: indexPath, to: newIndexPath)
-            }
-        case .update:
-            delegate?.updateObject(at: indexPath)
-        @unknown default:
-            delegate?.didReloadContent()
-        }
-    }
-    
-    func controller(_ controller: NSFetchedResultsController<NSFetchRequestResult>, didChange sectionInfo: NSFetchedResultsSectionInfo, atSectionIndex sectionIndex: Int, for type: NSFetchedResultsChangeType) {
-        switch type {
-        case .insert:
-            delegate?.insert(section: sectionIndex)
-        case .delete:
-            delegate?.delete(section: sectionIndex)
-        case .move: break
-        case .update:
-            delegate?.update(section: sectionIndex)
-        @unknown default:
-            delegate?.didReloadContent()
-        }
     }
 }
 
 
-//MARK: - FetchedResultsControllerProviderProtocol
+//MARK: - Public
 
-extension FetchedResultsProvider: FetchedResultsProviderInterface {
+public extension FetchedResultsProvider {
     
     func indexPathForObject(using predicate: NSPredicate) -> IndexPath? {
         
@@ -99,8 +69,8 @@ extension FetchedResultsProvider: FetchedResultsProviderInterface {
         return nil
     }
     
-    var allObjects: [Any]? {
-        return fetchedResultsController?.fetchedObjects?.map { $0.getObject() }
+    var allObjects: [U]? {
+        return fetchedResultsController?.fetchedObjects?.map { $0.getObject() as! U }
     }
     
     func configure(limit: Int?) {
@@ -130,7 +100,7 @@ extension FetchedResultsProvider: FetchedResultsProviderInterface {
         reloadFetchController()
     }
     
-    func object(at indexPath: IndexPath) -> Any? {
+    func object(at indexPath: IndexPath) -> U? {
         
         guard indexPath.section < numberOfSections else { return nil }
         guard indexPath.item < (numberOfItems(in: indexPath.section) ?? 0) else { return nil }
@@ -139,7 +109,7 @@ extension FetchedResultsProvider: FetchedResultsProviderInterface {
             return nil
         }
 
-        return managedObject.getObject()
+        return managedObject.getObject() as! U
     }
     
     func numberOfItems(in section: Int) -> Int? {
@@ -186,7 +156,7 @@ private extension FetchedResultsProvider {
                                                                   managedObjectContext: context,
                                                                   sectionNameKeyPath: sectionName,
                                                                   cacheName: nil)
-            fetchedResultsController?.delegate = self
+            fetchedResultsController?.delegate = self.delegate == nil ? diffableFRCDelegate : classicFRCDelegate
             
         } else if let request = fetchedResultsController?.fetchRequest {
             updateFetchRequest(request)
@@ -201,5 +171,75 @@ private extension FetchedResultsProvider {
         } catch {
             print(error)
         }
+    }
+    
+    func observeDiffableFRCDelegate() {
+        
+        diffableFRCDelegate.snapshotChangePublisher
+            .sink {[weak self] snapshot in
+                
+                guard let controller = self?.fetchedResultsController else { return }
+                let snapshot = snapshot as NSDiffableDataSourceSnapshot<String, NSManagedObjectID>
+                var another = snapshot.mapObjects { id in
+                    let object = controller.managedObjectContext.object(with: id) as! (any CoreDataExportable)
+                    return object.getObject() as! U
+                }
+                self?.diffableDataSourcePublisher.send(another)
+            }
+            .store(in: &cancellables)
+    }
+    
+    func observeClassicFRCDelegate() {
+        
+        classicFRCDelegate.willChangePublisher
+            .sink {[weak self] _ in
+                self?.delegate?.willUpdateList()
+            }
+            .store(in: &cancellables)
+        
+        classicFRCDelegate.didChangePublisher
+            .sink {[weak self] _ in
+                self?.delegate?.didUpdateList()
+            }
+            .store(in: &cancellables)
+        
+        classicFRCDelegate.didChangeObjectChangePublisher
+            .sink {[weak self] event in
+                
+                switch event.type {
+                case .insert:
+                    self?.delegate?.insertObject(at: event.newIndexPath)
+                case .delete:
+                    self?.delegate?.deleteObject(at: event.indexPath)
+                case .move:
+                    if event.indexPath == event.newIndexPath {
+                        self?.delegate?.updateObject(at: event.indexPath)
+                    } else {
+                        self?.delegate?.moveObject(from: event.indexPath, to: event.newIndexPath)
+                    }
+                case .update:
+                    self?.delegate?.updateObject(at: event.indexPath)
+                @unknown default:
+                    self?.delegate?.didReloadContent()
+                }
+                
+            }
+            .store(in: &cancellables)
+        
+        classicFRCDelegate.didChangeSectionChangePublisher
+            .sink {[weak self] event in
+                switch event.type {
+                case .insert:
+                    self?.delegate?.insert(section: event.sectionIndex)
+                case .delete:
+                    self?.delegate?.delete(section: event.sectionIndex)
+                case .move: break
+                case .update:
+                    self?.delegate?.update(section: event.sectionIndex)
+                @unknown default:
+                    self?.delegate?.didReloadContent()
+                }
+            }
+            .store(in: &cancellables)
     }
 }

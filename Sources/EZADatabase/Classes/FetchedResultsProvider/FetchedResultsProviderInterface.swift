@@ -6,67 +6,9 @@
 //
 
 import Foundation
+import Combine
+import UIKit
 
-
-public protocol FetchedResultsProviderInterface: AnyObject {
-    
-    ///Returns all fetched objects
-    ///
-    var allObjects: [Any]? { get }
-    
-    ///Returns a boolean value that indicated whether content exist or not
-    ///
-    var contentExist: Bool { get }
-    
-    /// Adds limit.
-    /// - Parameters:
-    ///   - limit: an objects count limit, if nil - unlimited
-    ///
-    func configure(limit: Int?)
-    
-    /// Adds predicate.
-    /// - Parameters:
-    ///   - predicate: predicate object for fetch request
-    ///
-    func add(predicate: NSPredicate?)
-    
-    /// Updates FRC with current predicate.
-    /// - Parameters:
-    ///   - predicate: predicate object for fetch request
-    ///
-    func update(with predicate: NSPredicate?)
-    
-    /// Returns an object by passed indexPath
-    /// - Parameters:
-    ///   - indexPath: indexPath object
-    /// - Returns: an object for this indexPath if exist, otherwise nil
-    ///
-    func object(at indexPath: IndexPath) -> Any?
-    
-    /// Returns a number of items in section
-    /// - Parameters:
-    ///   - section: section number
-    /// - Returns: number of items in section if exist, otherwise nil
-    ///
-    func numberOfItems(in section: Int) -> Int?
-    
-    /// Returns a title of section
-    /// - Parameters:
-    ///   - section: section number
-    /// - Returns: a title of section if exist, otherwise nil
-    ///
-    func title(for section: Int) -> String?
-    
-    /// Returns a number of sections
-    ///
-    var numberOfSections: Int { get }
-    
-    /// Delegate callback
-    ///
-    var delegate: FetchedResultsProviderDelegate? { get set }
-    
-    func indexPathForObject(using predicate: NSPredicate) -> IndexPath?
-}
 
 public protocol FetchedResultsProviderDelegate: AnyObject {
     
@@ -97,4 +39,33 @@ public extension FetchedResultsProviderDelegate {
     func insert(section: Int) {}
     func delete(section: Int) {}
     func update(section: Int) {}
+}
+
+
+public extension NSDiffableDataSourceSnapshot where SectionIdentifierType == String {
+    
+    func mapObjects<T>(_ completion: (ItemIdentifierType) -> T?) -> NSDiffableDataSourceSnapshot<String, T> {
+        
+        var another: NSDiffableDataSourceSnapshot<String, T> = .init()
+        another.appendSections(self.sectionIdentifiers)
+        self.sectionIdentifiers.forEach {
+            let items = self.itemIdentifiers(inSection: $0)
+                .compactMap { item in
+                    return completion(item)
+                }
+            another.appendItems(items, toSection: $0)
+        }
+        return another
+    }
+    
+    func item(at indexPath: IndexPath) -> ItemIdentifierType {
+        let section = self.sectionIdentifiers[indexPath.section]
+        let item = self.itemIdentifiers(inSection: section)[indexPath.item]
+        return item
+    }
+    
+    func numberOfItems(in section: Int) -> Int {
+        let section = self.sectionIdentifiers[section]
+        return  self.itemIdentifiers(inSection: section).count
+    }
 }

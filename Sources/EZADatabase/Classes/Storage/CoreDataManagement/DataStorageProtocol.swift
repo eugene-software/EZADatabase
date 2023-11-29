@@ -11,7 +11,7 @@
 import Foundation
 import CoreData
 
-public protocol CoreDataCompatible {
+public protocol CoreDataCompatible: Hashable {
     
     associatedtype ManagedType: CoreDataExportable
     
@@ -148,12 +148,11 @@ public protocol CoreDataStorageInterface {
     ///   - fetchLimit: a limit to fetch
     /// - Returns: a FetchedResultsProviderInterface for UI collections
     ///
-    func fetchedResultsProvider<Type: CoreDataCompatible>(_ type: Type.Type,
-                                                          mainPredicate: NSPredicate,
+    func fetchedResultsProvider<Type: CoreDataCompatible>(mainPredicate: NSPredicate,
                                                           optionalPredicates: [NSPredicate]?,
                                                           sorting sortDescriptors: [NSSortDescriptor],
                                                           sectionName: String?,
-                                                          fetchLimit: Int?) -> FetchedResultsProviderInterface
+                                                          fetchLimit: Int?) -> FetchedResultsProvider<Type>
 }
 
 public extension CoreDataStorageInterface {

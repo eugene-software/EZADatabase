@@ -20,7 +20,7 @@ public enum DatabaseReaderComputationOperation: String {
 
 public protocol DatabaseReaderProtocol {
     
-    associatedtype ReadType
+    associatedtype ReadType: CoreDataCompatible
     
     /// Efficiently exports Updatable object from the database.
     ///
@@ -75,12 +75,11 @@ public protocol DatabaseReaderProtocol {
     ///   - fetchLimit: fetch limit for request
     /// - Returns: FetchedResultsProviderInterface object
     ///
-    static func fetchedResultsProvider(_ type: ReadType.Type,
-                                       mainPredicate: NSPredicate,
+    static func fetchedResultsProvider(mainPredicate: NSPredicate,
                                        optionalPredicates: [NSPredicate]?,
                                        sorting sortDescriptors: [NSSortDescriptor],
                                        sectionName: String?,
-                                       fetchLimit: Int?) -> FetchedResultsProviderInterface
+                                       fetchLimit: Int?) -> FetchedResultsProvider<ReadType>
 }
 
 public extension DatabaseReaderProtocol {
@@ -116,15 +115,13 @@ public class AppDatabaseExporter<ExportedType: CoreDataCompatible>: DatabaseRead
         return Reader<ReadType>.exportRemoteList(predicate: predicate, sort: sort)
     }
     
-    public static func fetchedResultsProvider(_ type: ReadType.Type,
-                                       mainPredicate: NSPredicate,
+    public static func fetchedResultsProvider(mainPredicate: NSPredicate,
                                        optionalPredicates: [NSPredicate]?,
                                        sorting sortDescriptors: [NSSortDescriptor],
                                        sectionName: String?,
-                                       fetchLimit: Int?) -> FetchedResultsProviderInterface
+                                              fetchLimit: Int?) -> FetchedResultsProvider<ReadType>
     {
-        return Reader<ReadType>.fetchedResultsProvider(type,
-                                                       mainPredicate: mainPredicate,
+        return Reader<ReadType>.fetchedResultsProvider(mainPredicate: mainPredicate,
                                                        optionalPredicates: optionalPredicates,
                                                        sorting: sortDescriptors,
                                                        sectionName: sectionName,

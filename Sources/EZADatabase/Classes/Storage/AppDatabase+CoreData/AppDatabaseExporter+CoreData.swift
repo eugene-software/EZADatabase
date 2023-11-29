@@ -30,21 +30,23 @@ extension CoreDataReader: DatabaseReaderProtocol where ExportedType: CoreDataCom
     
     static func exportRemote(predicate: NSPredicate?, sort: [NSSortDescriptor]?) -> AnyPublisher<ReadType?, Error> {
         
-        return Future { promise in
-            
-            let controller = CoreDataStorageController.shared
-            
-            let completion: (([ReadType.ManagedType]?) -> Void) = { result in
+        return Deferred {
+            return Future { promise in
                 
-                let object = result?.first?.getObject() as? ReadType
-                DispatchQueue.main.async {
-                    promise(.success(object))
+                let controller = CoreDataStorageController.shared
+                
+                let completion: (([ReadType.ManagedType]?) -> Void) = { result in
+                    
+                    let object = result?.first?.getObject() as? ReadType
+                    DispatchQueue.main.async {
+                        promise(.success(object))
+                    }
                 }
+                controller.asyncList(predicate: predicate,
+                                     sortDescriptors: sort,
+                                     fetchLimit: 1,
+                                     completion: completion)
             }
-            controller.asyncList(predicate: predicate,
-                                  sortDescriptors: sort,
-                                  fetchLimit: 1,
-                                  completion: completion)
         }
         .setFailureType(to: Error.self)
         .eraseToAnyPublisher()
@@ -52,40 +54,40 @@ extension CoreDataReader: DatabaseReaderProtocol where ExportedType: CoreDataCom
     
     static func exportRemoteList(predicate: NSPredicate?, sort: [NSSortDescriptor]?) -> AnyPublisher<[ReadType]?, Error> {
         
-        return Future { promise in
-            let controller = CoreDataStorageController.shared
-            
-            let completion: (([ReadType.ManagedType]?) -> Void) = { result in
+        return Deferred {
+            return Future { promise in
+                let controller = CoreDataStorageController.shared
                 
-                let mapped = result?.compactMap { obj in
-                    return obj.getObject() as? ReadType
+                let completion: (([ReadType.ManagedType]?) -> Void) = { result in
+                    
+                    let mapped = result?.compactMap { obj in
+                        return obj.getObject() as? ReadType
+                    }
+                    DispatchQueue.main.async {
+                        promise(.success(mapped))
+                    }
                 }
-                DispatchQueue.main.async {
-                    promise(.success(mapped))
-                }
+                
+                controller.asyncList(predicate: predicate,
+                                     sortDescriptors: nil,
+                                     fetchLimit: nil,
+                                     completion: completion)
             }
-            
-            controller.asyncList(predicate: predicate,
-                                  sortDescriptors: nil,
-                                  fetchLimit: nil,
-                                  completion: completion)
         }
         .setFailureType(to: Error.self)
         .eraseToAnyPublisher()
     }
     
-    static func fetchedResultsProvider(_ type: ReadType.Type,
-                                       mainPredicate: NSPredicate,
+    static func fetchedResultsProvider(mainPredicate: NSPredicate,
                                        optionalPredicates: [NSPredicate]?,
                                        sorting sortDescriptors: [NSSortDescriptor],
                                        sectionName: String?,
-                                       fetchLimit: Int?) -> FetchedResultsProviderInterface
+                                       fetchLimit: Int?) -> FetchedResultsProvider<ReadType>
     {
         
         let controller = CoreDataStorageController.shared
         
-        return controller.fetchedResultsProvider(type,
-                                                 mainPredicate: mainPredicate,
+        return controller.fetchedResultsProvider(mainPredicate: mainPredicate,
                                                  optionalPredicates: optionalPredicates,
                                                  sorting: sortDescriptors,
                                                  sectionName: sectionName,
