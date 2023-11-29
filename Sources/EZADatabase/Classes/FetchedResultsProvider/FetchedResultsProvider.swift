@@ -109,7 +109,7 @@ public extension FetchedResultsProvider {
             return nil
         }
 
-        return managedObject.getObject() as! U
+        return managedObject.getObject() as? U
     }
     
     func numberOfItems(in section: Int) -> Int? {
@@ -180,9 +180,9 @@ private extension FetchedResultsProvider {
                 
                 guard let controller = self?.fetchedResultsController else { return }
                 let snapshot = snapshot as NSDiffableDataSourceSnapshot<String, NSManagedObjectID>
-                var another = snapshot.mapObjects { id in
+                let another = snapshot.mapObjects { id in
                     let object = controller.managedObjectContext.object(with: id) as! (any CoreDataExportable)
-                    return object.getObject() as! U
+                    return object.getObject() as? U
                 }
                 self?.diffableDataSourcePublisher.send(another)
             }
