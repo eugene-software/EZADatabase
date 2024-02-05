@@ -98,7 +98,7 @@ public extension DatabaseReaderProtocol {
 }
 
 
-public class AppDatabaseExporter<ExportedType: CoreDataCompatible>: DatabaseReaderProtocol {
+public class EZAReader<ExportedType: CoreDataCompatible>: DatabaseReaderProtocol {
 
     typealias Reader = CoreDataReader
     public typealias ReadType = ExportedType
