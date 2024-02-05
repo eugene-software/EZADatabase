@@ -56,7 +56,7 @@ public protocol DatabaseWriterProtocol {
 }
 
 
-public class AppDatabaseImporter<ImportedType: CoreDataCompatible>: DatabaseWriterProtocol {
+public class EZAWriter<ImportedType: CoreDataCompatible>: DatabaseWriterProtocol {
     
     public typealias WriteType = ImportedType
     typealias Writer = CoreDataWriter
