@@ -20,10 +20,10 @@ import EZADatabase
 In AppDelegate run setup method:
 
 ```swift
-    func application(_ application: UIApplication, willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
-        AppDatabase.openDatabase(in: application)
-        return true
-    }
+func application(_ application: UIApplication, willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+    AppDatabase.openDatabase(in: application)
+    return true
+}
 ```
 
 Create CoreDataCompatible struct that reflects a CoreData model:
