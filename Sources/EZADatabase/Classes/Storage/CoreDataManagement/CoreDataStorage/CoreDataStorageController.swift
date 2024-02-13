@@ -23,7 +23,7 @@ class CoreDataStorageController: NSObject {
     
     //Static Properties
     //
-    static var shared: CoreDataStorageInterface = {
+    static var shared: CoreDataStorageController = {
         return CoreDataStorageController(completionClosure: nil)
     }()
     
@@ -134,7 +134,7 @@ extension CoreDataStorageController: CoreDataStorageInterface {
     func insertSync<Type: CoreDataCompatible>(object: Type?, predicate: NSPredicate?) -> Type.ManagedType? {
         
         guard let object = object else { return nil }
-        let predicate = predicate ?? NSPredicate(key: object.primaryKeyName, value: object.primaryKey)
+        let predicate = predicate ?? NSPredicate(key: Type.primaryKeyName, value: object.primaryKey)
         return self.insert(object: object, predicate: predicate, context: self.backgroundContext!)
     }
     
@@ -158,7 +158,7 @@ extension CoreDataStorageController: CoreDataStorageInterface {
         
         save {
             objects.forEach {
-                let predicate = NSPredicate(key: $0.primaryKeyName, value: $0.primaryKey)
+                let predicate = NSPredicate(key: Type.primaryKeyName, value: $0.primaryKey)
                 self.insert(object: $0, predicate: predicate, context: self.backgroundContext!)
             }
         } completionBlock: {
@@ -173,7 +173,7 @@ extension CoreDataStorageController: CoreDataStorageInterface {
             return
         }
         save {
-            let predicate = predicate ?? NSPredicate(key: object.primaryKeyName, value: object.primaryKey)
+            let predicate = predicate ?? NSPredicate(key: Type.primaryKeyName, value: object.primaryKey)
             self.insert(object: object, predicate: predicate, context: self.backgroundContext!)
         } completionBlock: {
             completion()

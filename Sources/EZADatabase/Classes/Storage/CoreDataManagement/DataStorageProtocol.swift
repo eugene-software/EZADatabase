@@ -21,7 +21,7 @@ public protocol CoreDataCompatible: Hashable {
     
     /// a primary key name for managed object to make internal relationships available
     ///
-    var primaryKeyName: String { get }
+    static var primaryKeyName: String { get }
     
     /// Initializes a new external object with DB object
     /// - Parameters:

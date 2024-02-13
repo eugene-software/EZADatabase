@@ -78,6 +78,22 @@ extension CoreDataReader: DatabaseReaderProtocol where ExportedType: CoreDataCom
         .eraseToAnyPublisher()
     }
     
+    static func observe(predicate: NSPredicate?, sort: [NSSortDescriptor]?) -> AnyPublisher<[ReadType], Error> {
+        
+        var sort = sort ?? []
+        if sort.count == 0 {
+            sort.append(.init(key: ReadType.primaryKeyName, ascending: true))
+        }
+        
+        let publisher: AnyPublisher<[ReadType.ManagedType], Error> = 
+        CoreDataStorageController.shared.viewContext.publisher(predicate: predicate, sort: sort)
+        return publisher
+            .map {
+                $0.compactMap { $0.getObject() as? ReadType }
+            }
+            .eraseToAnyPublisher()
+    }
+    
     static func fetchedResultsProvider(mainPredicate: NSPredicate,
                                        optionalPredicates: [NSPredicate]?,
                                        sorting sortDescriptors: [NSSortDescriptor],

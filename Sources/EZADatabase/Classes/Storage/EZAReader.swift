@@ -47,10 +47,19 @@ public protocol DatabaseReaderProtocol {
     ///   - type: Type of objects
     ///   - predicate: predicate for searching
     ///   - sort: sort descriptors for ordering
-    /// - Returns: A promise with a list of objects when the work is finished
+    /// - Returns: A publisher with a list of objects when the work is finished
     ///
     @discardableResult
     static func exportRemoteList(predicate: NSPredicate?, sort: [NSSortDescriptor]?)  -> AnyPublisher<[ReadType]?, Error>
+    
+    /// Efficiently observes objects updates from the database.
+    ///
+    /// - Parameters:
+    ///   - predicate: predicate for searching
+    ///   - sort: sort descriptors for ordering
+    /// - Returns: A publisher with a list of objects
+    ///
+    static func observe(predicate: NSPredicate?, sort: [NSSortDescriptor]?) -> AnyPublisher<[ReadType], Error>
     
     /// Efficiently computes an integer value of table's field.
     ///
@@ -95,6 +104,10 @@ public extension DatabaseReaderProtocol {
     static func exportRemoteList(predicate: NSPredicate?, sort: [NSSortDescriptor]? = nil)  -> AnyPublisher<[ReadType]?, Error> {
         return exportRemoteList(predicate: predicate, sort: sort)
     }
+    
+    static func observe(predicate: NSPredicate?, sort: [NSSortDescriptor]? = nil) -> AnyPublisher<[ReadType], Error> {
+        return observe(predicate: predicate, sort: sort)
+    }
 }
 
 
@@ -113,6 +126,10 @@ public class EZAReader<ExportedType: CoreDataCompatible>: DatabaseReaderProtocol
     
     public static func exportRemoteList(predicate: NSPredicate?, sort: [NSSortDescriptor]?) -> AnyPublisher<[ReadType]?, Error> {
         return Reader<ReadType>.exportRemoteList(predicate: predicate, sort: sort)
+    }
+    
+    public static func observe(predicate: NSPredicate?, sort: [NSSortDescriptor]? = nil) -> AnyPublisher<[ReadType], Error> {
+        return Reader<ReadType>.observe(predicate: predicate, sort: sort)
     }
     
     public static func fetchedResultsProvider(mainPredicate: NSPredicate,
