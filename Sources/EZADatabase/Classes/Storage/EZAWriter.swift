@@ -56,9 +56,9 @@ public protocol DatabaseWriterProtocol {
 }
 
 
-public class EZAWriter<ImportedType: CoreDataCompatible>: DatabaseWriterProtocol {
+extension EZADatabase: DatabaseWriterProtocol where T: CoreDataCompatible {
     
-    public typealias WriteType = ImportedType
+    public typealias WriteType = T
     typealias Writer = CoreDataWriter
     
     @discardableResult

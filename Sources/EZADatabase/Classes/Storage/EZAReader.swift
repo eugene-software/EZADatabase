@@ -111,10 +111,10 @@ public extension DatabaseReaderProtocol {
 }
 
 
-public class EZAReader<ExportedType: CoreDataCompatible>: DatabaseReaderProtocol {
+extension EZADatabase: DatabaseReaderProtocol where T: CoreDataCompatible {
 
     typealias Reader = CoreDataReader
-    public typealias ReadType = ExportedType
+    public typealias ReadType = T
     
     public static func exportRemoteSingle(predicate: NSPredicate?, sort: [NSSortDescriptor]?) -> ReadType? {
         return Reader<ReadType>.exportRemoteSingle(predicate: predicate, sort: sort)
