@@ -28,6 +28,7 @@
 import Foundation
 import UIKit
 import CoreData
+import Combine
 
 /// A type responsible for initializing the application's database
 public class EZADatabase<T> {
@@ -36,16 +37,36 @@ public class EZADatabase<T> {
 
 public extension EZADatabase where T == Any {
     
-    static func openDatabase(in application: UIApplication) {
+    static func openDatabase(in application: UIApplication = UIApplication.shared) -> AnyPublisher<Void, Never> {
         
-        //Initialize core data stack
-        //
-        _ = CoreDataStorageController.shared
+        return Deferred {
+            Future { promise in
+                _ = CoreDataStorageController.shared
+                promise(.success(()))
+            }
+        }
+        .eraseToAnyPublisher()
     }
     
-    static func deleteDatabase(keeping tablesToKeep: [NSManagedObject.Type], completion: (() -> Void)?) {
+    static func deleteDatabase(keeping tablesToKeep: [NSManagedObject.Type]) -> AnyPublisher<Void, Never> {
         
-        let tablesToKeepNames = tablesToKeep.map { String(describing: $0) }
-        CoreDataStorageController.shared.deleteAllTables(except: tablesToKeepNames, completion: completion)
+        return Deferred {
+            Future { promise in
+                let tablesToKeepNames = tablesToKeep.map { String(describing: $0) }
+                
+                CoreDataStorageController.shared.deleteAllTables(except: tablesToKeepNames) {
+                    promise(.success(()))
+                }
+            }
+        }
+        .eraseToAnyPublisher()
+    }
+    
+    static func reloadDatabase(in application: UIApplication = UIApplication.shared) -> AnyPublisher<Void, Never> {
+        return deleteDatabase(keeping: [])
+            .flatMap {
+                openDatabase(in: application)
+            }
+            .eraseToAnyPublisher()
     }
 }
