@@ -91,7 +91,7 @@ extension CoreDataUser : CoreDataExportable {
 
 let user = User(userId: "someId", userName: "John")
 
-EZAWriter.importRemoteList([user])
+EZADatabase.importRemoteList([user])
     .sink { completion in
         
     } receiveValue: { _ in
@@ -104,7 +104,7 @@ EZAWriter.importRemoteList([user])
 
 ```swift
 
-EZAReader.exportRemoteList(predicate: NSPredicate(key: "userId", value: "someId"))
+EZADatabase.exportRemoteList(predicate: NSPredicate(key: "userId", value: "someId"))
     .sink { completion in
         
     } receiveValue: { user in
