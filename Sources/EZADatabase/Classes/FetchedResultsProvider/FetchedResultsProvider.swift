@@ -36,13 +36,26 @@ public class FetchedResultsProvider<U: CoreDataCompatible>: NSObject {
     
     private var kDefaultFetchLimit: Int = 20
     
-    private var classicFRCDelegate: ClassicFRCDelegate = ClassicFRCDelegate()
-    private var diffableFRCDelegate: DiffableFRCDelegate = DiffableFRCDelegate()
+    private var classicFRCDelegate: ClassicFRCDelegate?
+    private var diffableFRCDelegate: DiffableFRCDelegate?
     
     public weak var delegate: FetchedResultsProviderDelegate? {
         didSet {
+            classicFRCDelegate = ClassicFRCDelegate()
             fetchedResultsController?.delegate = classicFRCDelegate
+            observeClassicFRCDelegate()
+            reloadFetchController()
         }
+    }
+    
+    public var diffableDataSourcePublisher: AnyPublisher<NSDiffableDataSourceSnapshot<String, U>?, Never> {
+        diffableDataSourceSubject.handleEvents(receiveSubscription: {[weak self] _ in
+            self?.diffableFRCDelegate = DiffableFRCDelegate()
+            self?.fetchedResultsController?.delegate = self?.diffableFRCDelegate
+            self?.observeDiffableFRCDelegate()
+            self?.reloadFetchController()
+        })
+        .eraseToAnyPublisher()
     }
     
     private var fetchedResultsController: NSFetchedResultsController<U.ManagedType>?
@@ -52,8 +65,8 @@ public class FetchedResultsProvider<U: CoreDataCompatible>: NSObject {
     private var sortDescriptors: [NSSortDescriptor]
     private var sectionName: String?
     private let context: NSManagedObjectContext
+    private var diffableDataSourceSubject: CurrentValueSubject<NSDiffableDataSourceSnapshot<String, U>?, Never> = .init(nil)
     
-    public var diffableDataSourcePublisher: CurrentValueSubject<NSDiffableDataSourceSnapshot<String, U>?, Never> = .init(nil)
     
     init(_ mainPredicate: NSPredicate,
          optionalPredicates: [NSPredicate]?,
@@ -69,10 +82,6 @@ public class FetchedResultsProvider<U: CoreDataCompatible>: NSObject {
         self.sectionName = sectionName
         self.context = context
         super.init()
-        
-        observeClassicFRCDelegate()
-        observeDiffableFRCDelegate()
-        reloadFetchController()
     }
 }
 
@@ -176,7 +185,7 @@ private extension FetchedResultsProvider {
                                                                   managedObjectContext: context,
                                                                   sectionNameKeyPath: sectionName,
                                                                   cacheName: nil)
-            fetchedResultsController?.delegate = self.delegate == nil ? diffableFRCDelegate : classicFRCDelegate
+            fetchedResultsController?.delegate = diffableFRCDelegate ?? classicFRCDelegate
             
         } else if let request = fetchedResultsController?.fetchRequest {
             updateFetchRequest(request)
@@ -195,7 +204,7 @@ private extension FetchedResultsProvider {
     
     func observeDiffableFRCDelegate() {
         
-        diffableFRCDelegate.snapshotChangePublisher
+        diffableFRCDelegate?.snapshotChangePublisher
             .sink {[weak self] snapshot in
                 
                 guard let controller = self?.fetchedResultsController else { return }
@@ -204,26 +213,26 @@ private extension FetchedResultsProvider {
                     let object = controller.managedObjectContext.object(with: id) as! (any CoreDataExportable)
                     return object.getObject() as? U
                 }
-                self?.diffableDataSourcePublisher.send(another)
+                self?.diffableDataSourceSubject.send(another)
             }
             .store(in: &cancellables)
     }
     
     func observeClassicFRCDelegate() {
         
-        classicFRCDelegate.willChangePublisher
+        classicFRCDelegate?.willChangePublisher
             .sink {[weak self] _ in
                 self?.delegate?.willUpdateList()
             }
             .store(in: &cancellables)
         
-        classicFRCDelegate.didChangePublisher
+        classicFRCDelegate?.didChangePublisher
             .sink {[weak self] _ in
                 self?.delegate?.didUpdateList()
             }
             .store(in: &cancellables)
         
-        classicFRCDelegate.didChangeObjectChangePublisher
+        classicFRCDelegate?.didChangeObjectChangePublisher
             .sink {[weak self] event in
                 
                 switch event.type {
@@ -246,7 +255,7 @@ private extension FetchedResultsProvider {
             }
             .store(in: &cancellables)
         
-        classicFRCDelegate.didChangeSectionChangePublisher
+        classicFRCDelegate?.didChangeSectionChangePublisher
             .sink {[weak self] event in
                 switch event.type {
                 case .insert:

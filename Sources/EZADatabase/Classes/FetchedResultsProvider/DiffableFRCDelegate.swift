@@ -34,6 +34,10 @@ class DiffableFRCDelegate: NSObject, NSFetchedResultsControllerDelegate {
     
     let snapshotChangePublisher: PassthroughSubject<NSDiffableDataSourceSnapshotReference, Never> = .init()
     
+    override init() {
+        super.init()
+    }
+    
     public func controller(_ controller: NSFetchedResultsController<NSFetchRequestResult>, didChangeContentWith snapshot: NSDiffableDataSourceSnapshotReference) {
         snapshotChangePublisher.send(snapshot)
     }
