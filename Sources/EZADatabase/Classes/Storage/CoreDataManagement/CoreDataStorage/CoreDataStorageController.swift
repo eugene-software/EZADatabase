@@ -28,7 +28,7 @@
 import Foundation
 import CoreData
 
-class FrameworkPersistentContainer: NSPersistentContainer {}
+class FrameworkPersistentContainer: NSPersistentCloudKitContainer {}
 
 private extension DispatchQueue {
     static var coreDataConcurrent: DispatchQueue = DispatchQueue(label: UUID().uuidString, qos: .userInitiated, attributes: .concurrent)
