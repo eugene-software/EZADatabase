@@ -22,8 +22,10 @@ In AppDelegate run setup method:
 ```swift
 func application(_ application: UIApplication, willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
     EZADatabase
-            .openDatabase(in: application)
-            .sink { _ in }
+            .openDatabase()
+            .sink { completion in
+            } receiveValue: { _ in
+            }
             .store(in: &cancellables)
     return true
 }
