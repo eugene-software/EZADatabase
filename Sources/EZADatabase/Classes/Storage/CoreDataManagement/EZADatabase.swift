@@ -37,36 +37,61 @@ public class EZADatabase<T> {
 
 public extension EZADatabase where T == Any {
     
-    static func openDatabase(in application: UIApplication = UIApplication.shared) -> AnyPublisher<Void, Never> {
+    static func openDatabase() -> AnyPublisher<Void, Error> {
         
         return Deferred {
             Future { promise in
-                _ = CoreDataStorageController.shared
-                promise(.success(()))
-            }
-        }
-        .eraseToAnyPublisher()
-    }
-    
-    static func deleteDatabase(keeping tablesToKeep: [NSManagedObject.Type]) -> AnyPublisher<Void, Never> {
-        
-        return Deferred {
-            Future { promise in
-                let tablesToKeepNames = tablesToKeep.map { String(describing: $0) }
-                
-                CoreDataStorageController.shared.deleteAllTables(except: tablesToKeepNames) {
-                    promise(.success(()))
+                CoreDataStorageController.shared.loadStore { error in
+                    if let err = error {
+                        promise(.failure(err))
+                    } else {
+                        promise(.success(()))
+                    }
                 }
             }
         }
         .eraseToAnyPublisher()
     }
     
-    static func reloadDatabase(in application: UIApplication = UIApplication.shared) -> AnyPublisher<Void, Never> {
+    static func deleteDatabase(keeping tablesToKeep: [NSManagedObject.Type]) -> AnyPublisher<Void, Error> {
+        
+        return Deferred {
+            Future { promise in
+                let tablesToKeepNames = tablesToKeep.map { String(describing: $0) }
+                
+                CoreDataStorageController.shared.deleteAllTables(except: tablesToKeepNames) { error in
+                    if let err = error {
+                        promise(.failure(err))
+                    } else {
+                        promise(.success(()))
+                    }
+                }
+            }
+        }
+        .eraseToAnyPublisher()
+    }
+    
+    static func reloadDatabase() -> AnyPublisher<Void, Error> {
         return deleteDatabase(keeping: [])
             .flatMap {
-                openDatabase(in: application)
+                openDatabase()
             }
             .eraseToAnyPublisher()
+    }
+    
+    static func destroyDatabase() -> AnyPublisher<Void, Error> {
+        
+        return Deferred {
+            Future { promise in
+                CoreDataStorageController.shared.destroy() { error in
+                    if let err = error {
+                        promise(.failure(err))
+                    } else {
+                        promise(.success(()))
+                    }
+                }
+            }
+        }
+        .eraseToAnyPublisher()
     }
 }

@@ -40,9 +40,7 @@ class CoreDataStorageController: NSObject {
     
     //Static Properties
     //
-    static var shared: CoreDataStorageController = {
-        return CoreDataStorageController(completionClosure: nil)
-    }()
+    static var shared: CoreDataStorageController = CoreDataStorageController()
     
     //Private Properties
     //
@@ -55,13 +53,7 @@ class CoreDataStorageController: NSObject {
         return persistentContainer.viewContext
     }
     
-    init(completionClosure: (() -> Void)?) {
-        
-        super.init()
-        loadStore(completionClosure: completionClosure)
-    }
-    
-    func loadStore(completionClosure: (() -> Void)?) {
+    func loadStore(completionClosure: ((Error?) -> Void)?) {
         
         guard let containerName = Bundle.main.infoDictionary?[Self.kEZADatabaseModelName] as? String else {
             fatalError("EZADatabaseModelName should be specified in Info.plist. Make sure it's equal to .xcdatamodel file name")
@@ -69,17 +61,13 @@ class CoreDataStorageController: NSObject {
         
         persistentContainer = FrameworkPersistentContainer(name: containerName)
         persistentContainer.loadPersistentStores() { (description, error) in
-            
-            if let error = error {
-                print("Failed to load Core Data stack: \(error)")
-            }
-            
-            completionClosure?()
+            completionClosure?(error)
         }
         
         // Initialize background context to perform all operations in background.
         //
         backgroundContext = persistentContainer.newBackgroundContext()
+        backgroundContext?.undoManager = nil
         backgroundContext?.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
         backgroundContext?.automaticallyMergesChangesFromParent = true
         persistentContainer.viewContext.automaticallyMergesChangesFromParent = true
@@ -92,7 +80,28 @@ class CoreDataStorageController: NSObject {
 
 extension CoreDataStorageController: CoreDataStorageInterface {
     
-    func deleteAllTables(except names: [String], completion: (() -> Void)?) {
+    func destroy(completion: ((Error?) -> Void)?) {
+        
+        backgroundContext?.reset()
+        viewContext.reset()
+        defer {
+            backgroundContext = nil
+        }
+        
+        do {
+            let coordinator = persistentContainer.persistentStoreCoordinator
+            let stores = coordinator.persistentStores
+            for store in stores {
+                guard let url = store.url else { continue }
+                try coordinator.destroyPersistentStore(at: url, ofType: store.type, options: nil)
+            }
+            completion?(nil)
+        } catch {
+            completion?(error)
+        }
+    }
+    
+    func deleteAllTables(except names: [String], completion: ((Error?) -> Void)?) {
         
         let context = backgroundContext
         let allEntitiyNames = persistentContainer.managedObjectModel.entities.compactMap { $0.name }
@@ -106,10 +115,10 @@ extension CoreDataStorageController: CoreDataStorageInterface {
                     try context?.executeAndMergeChanges(using: deleteRequest)
                 }
             } catch {
-                print(error)
+                completion?(error)
             }
         } completionBlock: {
-            completion?()
+            completion?(nil)
         }
     }
     
@@ -171,14 +180,22 @@ extension CoreDataStorageController: CoreDataStorageInterface {
     
     func insertList<Type: CoreDataCompatible>(objects: [Type?], completion: @escaping () -> Void) {
         
-        let objects = objects.compactMap {$0}
+        let objects = objects.compactMap{$0}.chunked(into: 1000)
+        let group = DispatchGroup()
         
-        save {
-            objects.forEach {
-                let predicate = NSPredicate(key: Type.primaryKeyName, value: $0.primaryKey)
-                self.insert(object: $0, predicate: predicate, context: self.backgroundContext!)
+        objects.forEach { chunk in
+            group.enter()
+            save {
+                chunk.forEach {
+                    let predicate = NSPredicate(key: Type.primaryKeyName, value: $0.primaryKey)
+                    self.insert(object: $0, predicate: predicate, context: self.backgroundContext!)
+                }
+            } completionBlock: {
+                group.leave()
             }
-        } completionBlock: {
+        }
+        
+        group.notify(queue: .main) {
             completion()
         }
     }
@@ -282,7 +299,7 @@ private extension CoreDataStorageController {
         let entityName = String(describing: Type.ManagedType.self)
         let result: Type.ManagedType?
         
-        if let list: [Type.ManagedType] = query(predicate: predicate, context: context, fetchLimit: nil), !list.isEmpty {
+        if let list: [Type.ManagedType] = query(predicate: predicate, context: context, fetchLimit: 1), !list.isEmpty {
             result = list.first
         } else {
             result = NSEntityDescription.insertNewObject(forEntityName: entityName, into: context) as? Type.ManagedType
@@ -361,6 +378,14 @@ private extension NSManagedObjectContext {
         let result = try execute(batchDeleteRequest) as? NSBatchDeleteResult
         let changes: [AnyHashable: Any] = [NSDeletedObjectsKey: result?.result as? [NSManagedObjectID] ?? []]
         NSManagedObjectContext.mergeChanges(fromRemoteContextSave: changes, into: [self])
+    }
+}
+
+private extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0 ..< Swift.min($0 + size, count)])
+        }
     }
 }
 

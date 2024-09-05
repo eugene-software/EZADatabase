@@ -74,7 +74,7 @@ public protocol CoreDataStorageInterface {
     ///   - names: table names which should be kept after delete
     ///   - completion: a completion performed on main thread
     ///
-    func deleteAllTables(except names: [String], completion: (() -> Void)?)
+    func deleteAllTables(except names: [String], completion: ((Error?) -> Void)?)
     
     /// Sets values to particular objects by NSPredicate
     /// - Parameters:
