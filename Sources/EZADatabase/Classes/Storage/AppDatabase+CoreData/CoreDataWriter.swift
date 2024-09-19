@@ -40,12 +40,11 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
         return Deferred {
             return Future { promise in
                 CoreDataStorageController.shared.delete(WriteType.ManagedType.self, with: predicate) {
-                    DispatchQueue.main.async {
-                        promise(.success(()))
-                    }
+                    promise(.success(()))
                 }
             }
         }
+        .receive(on: DispatchQueue.main)
         .setFailureType(to: Error.self)
         .eraseToAnyPublisher()
     }
@@ -55,12 +54,11 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
         return Deferred {
             return Future { promise in
                 CoreDataStorageController.shared.insertList(objects: objectsToImport) {
-                    DispatchQueue.main.async {
-                        promise(.success(()))
-                    }
+                    promise(.success(()))
                 }
             }
         }
+        .receive(on: DispatchQueue.main)
         .setFailureType(to: Error.self)
         .eraseToAnyPublisher()
     }
@@ -70,12 +68,11 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
         return Deferred {
             return Future { promise in
                 CoreDataStorageController.shared.insertAsync(object: objectToImport, predicate: predicate) {
-                    DispatchQueue.main.async {
-                        promise(.success(()))
-                    }
+                    promise(.success(()))
                 }
             }
         }
+        .receive(on: DispatchQueue.main)
         .setFailureType(to: Error.self)
         .eraseToAnyPublisher()
     }
@@ -85,12 +82,11 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
         return Deferred {
             return Future { promise in
                 CoreDataStorageController.shared.setValues(type: entity, values: values, predicate: predicate) {
-                    DispatchQueue.main.async {
-                        promise(.success(()))
-                    }
+                    promise(.success(()))
                 }
             }
         }
+        .receive(on: DispatchQueue.main)
         .setFailureType(to: Error.self)
         .eraseToAnyPublisher()
     }

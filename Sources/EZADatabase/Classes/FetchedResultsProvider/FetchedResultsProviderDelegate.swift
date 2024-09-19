@@ -30,7 +30,7 @@ import Combine
 import UIKit
 
 
-@MainActor public protocol FetchedResultsProviderDelegate: AnyObject {
+@MainActor public protocol FetchedResultsProviderDelegate: AnyObject, Sendable {
     
     func willUpdateList()
     func didUpdateList()
@@ -64,7 +64,7 @@ public extension FetchedResultsProviderDelegate {
 
 public extension NSDiffableDataSourceSnapshot where SectionIdentifierType == String {
     
-    func mapObjects<T>(_ completion: (ItemIdentifierType) -> T?) -> NSDiffableDataSourceSnapshot<String, T> {
+    func mapObjects<T: Sendable>(_ completion: (ItemIdentifierType) -> T?) -> NSDiffableDataSourceSnapshot<String, T> {
         
         var another: NSDiffableDataSourceSnapshot<String, T> = .init()
         another.appendSections(self.sectionIdentifiers)

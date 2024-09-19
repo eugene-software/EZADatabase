@@ -55,9 +55,7 @@ extension CoreDataReader: DatabaseReaderProtocol where ExportedType: CoreDataCom
                 let completion: (([ReadType.ManagedType]?) -> Void) = { result in
                     
                     let object = result?.first?.getObject() as? ReadType
-                    DispatchQueue.main.async {
-                        promise(.success(object))
-                    }
+                    promise(.success(object))
                 }
                 controller.asyncList(predicate: predicate,
                                      sortDescriptors: sort,
@@ -65,6 +63,7 @@ extension CoreDataReader: DatabaseReaderProtocol where ExportedType: CoreDataCom
                                      completion: completion)
             }
         }
+        .receive(on: DispatchQueue.main)
         .setFailureType(to: Error.self)
         .eraseToAnyPublisher()
     }
@@ -80,9 +79,7 @@ extension CoreDataReader: DatabaseReaderProtocol where ExportedType: CoreDataCom
                     let mapped = result?.compactMap { obj in
                         return obj.getObject() as? ReadType
                     }
-                    DispatchQueue.main.async {
-                        promise(.success(mapped))
-                    }
+                    promise(.success(mapped))
                 }
                 
                 controller.asyncList(predicate: predicate,
@@ -91,6 +88,7 @@ extension CoreDataReader: DatabaseReaderProtocol where ExportedType: CoreDataCom
                                      completion: completion)
             }
         }
+        .receive(on: DispatchQueue.main)
         .setFailureType(to: Error.self)
         .eraseToAnyPublisher()
     }

@@ -28,7 +28,7 @@
 import Foundation
 import CoreData
 
-public protocol CoreDataCompatible: Hashable {
+public protocol CoreDataCompatible: Hashable, Sendable {
     
     associatedtype ManagedType: CoreDataExportable
     
@@ -48,7 +48,7 @@ public protocol CoreDataCompatible: Hashable {
 }
 
 
-public protocol CoreDataExportable: NSManagedObject {
+public protocol CoreDataExportable: NSManagedObject, Sendable {
     
     associatedtype ExportType: CoreDataCompatible
     

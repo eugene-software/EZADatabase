@@ -30,7 +30,7 @@ import CoreData
 import Combine
 import UIKit
 
-public class FetchedResultsProvider<U: CoreDataCompatible>: NSObject {
+public class FetchedResultsProvider<U: CoreDataCompatible>: NSObject, @unchecked Sendable {
     
     private var cancellables: [AnyCancellable] = []
     

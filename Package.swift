@@ -18,6 +18,6 @@ let package = Package(
             dependencies: []),
     ],
     swiftLanguageVersions: [
-        .v5
+        .v6
     ]
 )

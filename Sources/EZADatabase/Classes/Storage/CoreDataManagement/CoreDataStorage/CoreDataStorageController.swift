@@ -26,21 +26,21 @@
 //
 
 import Foundation
-import CoreData
+@preconcurrency import CoreData
 
 class FrameworkPersistentContainer: NSPersistentCloudKitContainer, @unchecked Sendable {}
 
 private extension DispatchQueue {
-    static var coreDataConcurrent: DispatchQueue = DispatchQueue(label: UUID().uuidString, qos: .userInitiated, attributes: .concurrent)
+    static let coreDataConcurrent: DispatchQueue = DispatchQueue(label: UUID().uuidString, qos: .userInitiated, attributes: .concurrent)
 }
 
-class CoreDataStorageController: NSObject {
+class CoreDataStorageController: NSObject, @unchecked Sendable {
     
     private static let kEZADatabaseModelName = "EZADatabaseModelName";
     
     //Static Properties
     //
-    static var shared: CoreDataStorageController = CoreDataStorageController()
+    static let shared: CoreDataStorageController = CoreDataStorageController()
     
     //Private Properties
     //
@@ -153,8 +153,8 @@ extension CoreDataStorageController: CoreDataStorageInterface {
     }
     
     func findRelation<Type: CoreDataExportable>(predicate: NSPredicate?) -> Type? {
-        let result: Type? = query(predicate: predicate, context: backgroundContext!, sortDescriptors: nil, fetchLimit: 1)?.first
-        return result
+        let result: [Type]? = query(predicate: predicate, context: backgroundContext!, sortDescriptors: nil, fetchLimit: 1)
+        return result?.first
     }
     
     func insertSync<Type: CoreDataCompatible>(object: Type?, predicate: NSPredicate?) -> Type.ManagedType? {
@@ -286,9 +286,7 @@ private extension CoreDataStorageController {
         context?.perform { [weak context] in
             saveBlock()
             context?.saveSelfAndParent() {
-                DispatchQueue.main.async {
-                    completionBlock()
-                }
+                completionBlock()
             }
         }
     }
