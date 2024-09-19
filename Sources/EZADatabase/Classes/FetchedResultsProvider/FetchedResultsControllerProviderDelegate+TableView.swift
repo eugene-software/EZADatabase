@@ -30,7 +30,7 @@ import UIKit
 
 //MARK: - FetchedResultsProviderDelegate + TableView
 
-public protocol TableViewFetchedResultsProviderDelegate: FetchedResultsProviderDelegate {
+@MainActor public protocol TableViewFetchedResultsProviderDelegate: FetchedResultsProviderDelegate {
     
     var shouldStopScroll: Bool { get }
     var animationType: UITableView.RowAnimation { get }

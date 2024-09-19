@@ -30,7 +30,7 @@ import UIKit
 
 //MARK: - FetchedResultsProviderDelegate + CollectionView
 
-public struct ProviderOperation {
+@MainActor public struct ProviderOperation {
     
     enum OperationType {
         case insert, delete, update, move
@@ -39,7 +39,7 @@ public struct ProviderOperation {
     let type: OperationType
 }
 
-public protocol CollectionViewFetchedResultsProviderDelegate: FetchedResultsProviderDelegate {
+@MainActor public protocol CollectionViewFetchedResultsProviderDelegate: FetchedResultsProviderDelegate {
     
     var collectionView: UICollectionView! { get }
     var operations: [ProviderOperation] { get set }
@@ -77,53 +77,68 @@ public extension CollectionViewFetchedResultsProviderDelegate {
     func moveObject(from indexPath: IndexPath?, to newIndexPath: IndexPath?) {
         
         guard let from = indexPath, let to = newIndexPath else { return }
-        addToOperations(operation: ProviderOperation(operation: BlockOperation { [weak self] in
-            self?.collectionView.deleteItems(at: [from])
-            self?.collectionView.insertItems(at: [to])
+        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
+            MainActor.assumeIsolated {
+                self?.collectionView.deleteItems(at: [from])
+                self?.collectionView.insertItems(at: [to])
+            }
+            
         }, type: .move))
     }
     
     func insertObject(at indexPath: IndexPath?) {
         
         let indexPaths = [indexPath].compactMap{ $0 }
-        addToOperations(operation: ProviderOperation(operation: BlockOperation { [weak self] in
-            self?.collectionView.insertItems(at: indexPaths)
+        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
+            MainActor.assumeIsolated {
+                self?.collectionView.insertItems(at: indexPaths)
+            }
         }, type: .insert))
     }
     
     func deleteObject(at indexPath: IndexPath?) {
         
         let indexPaths = [indexPath].compactMap{ $0 }
-            addToOperations(operation: ProviderOperation(operation: BlockOperation { [weak self] in
-            self?.collectionView.deleteItems(at: indexPaths)
-            }, type: .delete))
+        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
+            MainActor.assumeIsolated {
+                self?.collectionView.deleteItems(at: indexPaths)
+            }
+        }, type: .delete))
     }
     
     func updateObject(at indexPath: IndexPath?) {
         
         let indexPaths = [indexPath].compactMap{ $0 }
         if indexPaths.isEmpty { return }
-                addToOperations(operation: ProviderOperation(operation: BlockOperation { [weak self] in
-            self?.collectionView.reloadItems(at: indexPaths)
-                }, type: .update))
+        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
+            MainActor.assumeIsolated {
+                self?.collectionView.reloadItems(at: indexPaths)
+            }
+        }, type: .update))
     }
     
     func insert(section: Int) {
-            addToOperations(operation: ProviderOperation(operation: BlockOperation { [weak self] in
-            self?.collectionView.insertSections(IndexSet(integer: section))
-            }, type: .insert))
+        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
+            MainActor.assumeIsolated {
+                self?.collectionView.insertSections(IndexSet(integer: section))
+            }
+        }, type: .insert))
     }
     
     func delete(section: Int) {
-                addToOperations(operation: ProviderOperation(operation: BlockOperation { [weak self] in
-            self?.collectionView.deleteSections(IndexSet(integer: section))
-                }, type: .delete))
+        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
+            MainActor.assumeIsolated {
+                self?.collectionView.deleteSections(IndexSet(integer: section))
+            }
+        }, type: .delete))
     }
     
     func update(section: Int) {
-                    addToOperations(operation: ProviderOperation(operation: BlockOperation { [weak self] in
-            self?.collectionView.reloadSections(IndexSet(integer: section))
-                    }, type: .update))
+        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
+            MainActor.assumeIsolated {
+                self?.collectionView.reloadSections(IndexSet(integer: section))
+            }
+        }, type: .update))
     }
     
     private func addToOperations(operation: ProviderOperation) {
@@ -133,9 +148,13 @@ public extension CollectionViewFetchedResultsProviderDelegate {
     private func performBatchesOperations() {
         
         if operations.isEmpty { return }
-                        
-        self.collectionView.performBatchUpdates({[weak self] () -> Void in
-            self?.operations.forEach { $0.operation.start() }
+        
+        self.collectionView.performBatchUpdates({
+            Task {
+                await MainActor.run {[weak self] in
+                    self?.operations.forEach { $0.operation.start() }
+                }
+            }
         }, completion: {[weak self] (finished) -> Void in
             self?.operations.removeAll()
             DispatchQueue.main.async {

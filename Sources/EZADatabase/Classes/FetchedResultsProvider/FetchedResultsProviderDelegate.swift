@@ -30,7 +30,7 @@ import Combine
 import UIKit
 
 
-public protocol FetchedResultsProviderDelegate: AnyObject {
+@MainActor public protocol FetchedResultsProviderDelegate: AnyObject {
     
     func willUpdateList()
     func didUpdateList()

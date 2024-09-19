@@ -220,55 +220,62 @@ private extension FetchedResultsProvider {
     
     func observeClassicFRCDelegate() {
         
-        classicFRCDelegate?.willChangePublisher
-            .sink {[weak self] _ in
-                self?.delegate?.willUpdateList()
-            }
-            .store(in: &cancellables)
-        
-        classicFRCDelegate?.didChangePublisher
-            .sink {[weak self] _ in
-                self?.delegate?.didUpdateList()
-            }
-            .store(in: &cancellables)
-        
-        classicFRCDelegate?.didChangeObjectChangePublisher
-            .sink {[weak self] event in
-                
-                switch event.type {
-                case .insert:
-                    self?.delegate?.insertObject(at: event.newIndexPath)
-                case .delete:
-                    self?.delegate?.deleteObject(at: event.indexPath)
-                case .move:
-                    if event.indexPath == event.newIndexPath {
-                        self?.delegate?.updateObject(at: event.indexPath)
-                    } else {
-                        self?.delegate?.moveObject(from: event.indexPath, to: event.newIndexPath)
+        Task {
+            await MainActor.run {
+                classicFRCDelegate?.willChangePublisher
+                    .sink { [weak self] _ in
+                        self?.delegate?.willUpdateList()
                     }
-                case .update:
-                    self?.delegate?.updateObject(at: event.indexPath)
-                @unknown default:
-                    self?.delegate?.didReloadContent()
-                }
+                    .store(in: &cancellables)
                 
+                classicFRCDelegate?.didChangePublisher
+                    .receive(on: DispatchQueue.main)
+                    .sink {[weak self] _ in
+                        self?.delegate?.didUpdateList()
+                    }
+                    .store(in: &cancellables)
+                
+                classicFRCDelegate?.didChangeObjectChangePublisher
+                    .receive(on: DispatchQueue.main)
+                    .sink {[weak self] event in
+                        
+                        switch event.type {
+                        case .insert:
+                            self?.delegate?.insertObject(at: event.newIndexPath)
+                        case .delete:
+                            self?.delegate?.deleteObject(at: event.indexPath)
+                        case .move:
+                            if event.indexPath == event.newIndexPath {
+                                self?.delegate?.updateObject(at: event.indexPath)
+                            } else {
+                                self?.delegate?.moveObject(from: event.indexPath, to: event.newIndexPath)
+                            }
+                        case .update:
+                            self?.delegate?.updateObject(at: event.indexPath)
+                        @unknown default:
+                            self?.delegate?.didReloadContent()
+                        }
+                        
+                    }
+                    .store(in: &cancellables)
+                
+                classicFRCDelegate?.didChangeSectionChangePublisher
+                    .receive(on: DispatchQueue.main)
+                    .sink {[weak self] event in
+                        switch event.type {
+                        case .insert:
+                            self?.delegate?.insert(section: event.sectionIndex)
+                        case .delete:
+                            self?.delegate?.delete(section: event.sectionIndex)
+                        case .move: break
+                        case .update:
+                            self?.delegate?.update(section: event.sectionIndex)
+                        @unknown default:
+                            self?.delegate?.didReloadContent()
+                        }
+                    }
+                    .store(in: &cancellables)
             }
-            .store(in: &cancellables)
-        
-        classicFRCDelegate?.didChangeSectionChangePublisher
-            .sink {[weak self] event in
-                switch event.type {
-                case .insert:
-                    self?.delegate?.insert(section: event.sectionIndex)
-                case .delete:
-                    self?.delegate?.delete(section: event.sectionIndex)
-                case .move: break
-                case .update:
-                    self?.delegate?.update(section: event.sectionIndex)
-                @unknown default:
-                    self?.delegate?.didReloadContent()
-                }
-            }
-            .store(in: &cancellables)
+        }
     }
 }
