@@ -48,7 +48,7 @@ public protocol CoreDataCompatible: Hashable, Sendable {
 }
 
 
-public protocol CoreDataExportable: NSManagedObject, Sendable {
+public protocol CoreDataExportable: NSManagedObject {
     
     associatedtype ExportType: CoreDataCompatible
     
