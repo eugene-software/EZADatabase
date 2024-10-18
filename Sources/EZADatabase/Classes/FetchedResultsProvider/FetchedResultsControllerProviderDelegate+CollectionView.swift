@@ -149,12 +149,8 @@ public extension CollectionViewFetchedResultsProviderDelegate {
         
         if operations.isEmpty { return }
         
-        self.collectionView.performBatchUpdates({
-            Task {
-                await MainActor.run {[weak self] in
-                    self?.operations.forEach { $0.operation.start() }
-                }
-            }
+        self.collectionView.performBatchUpdates({[weak self] in
+            self?.operations.forEach { $0.operation.start() }
         }, completion: {[weak self] (finished) -> Void in
             self?.operations.removeAll()
             DispatchQueue.main.async {
