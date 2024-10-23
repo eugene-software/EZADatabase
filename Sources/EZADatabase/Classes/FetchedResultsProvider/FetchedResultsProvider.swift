@@ -229,14 +229,12 @@ private extension FetchedResultsProvider {
                     .store(in: &cancellables)
                 
                 classicFRCDelegate?.didChangePublisher
-                    .receive(on: DispatchQueue.main)
                     .sink {[weak self] _ in
                         self?.delegate?.didUpdateList()
                     }
                     .store(in: &cancellables)
                 
                 classicFRCDelegate?.didChangeObjectChangePublisher
-                    .receive(on: DispatchQueue.main)
                     .sink {[weak self] event in
                         
                         switch event.type {
@@ -260,7 +258,6 @@ private extension FetchedResultsProvider {
                     .store(in: &cancellables)
                 
                 classicFRCDelegate?.didChangeSectionChangePublisher
-                    .receive(on: DispatchQueue.main)
                     .sink {[weak self] event in
                         switch event.type {
                         case .insert:
