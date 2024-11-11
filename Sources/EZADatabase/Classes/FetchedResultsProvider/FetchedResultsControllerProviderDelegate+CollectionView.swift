@@ -30,26 +30,14 @@ import UIKit
 
 //MARK: - FetchedResultsProviderDelegate + CollectionView
 
-@MainActor public struct ProviderOperation {
-    
-    enum OperationType {
-        case insert, delete, update, move
-    }
-    let operation: BlockOperation
-    let type: OperationType
-}
-
 @MainActor public protocol CollectionViewFetchedResultsProviderDelegate: FetchedResultsProviderDelegate {
     
     var collectionView: UICollectionView! { get }
     var operations: [ProviderOperation] { get set }
-    var shouldAlwaysReloadData: Bool { get }
     func didFinishAnimation()
 }
 
 public extension CollectionViewFetchedResultsProviderDelegate {
-    
-    var shouldAlwaysReloadData: Bool { return false }
     
     func didFinishAnimation() {
         collectionView.reloadData()
@@ -65,7 +53,7 @@ public extension CollectionViewFetchedResultsProviderDelegate {
     
     func didUpdateList() {
         
-        if shouldAlwaysReloadData || collectionView.window == nil || UIApplication.shared.applicationState != .active {
+        if collectionView.window == nil || UIApplication.shared.applicationState != .active {
             collectionView.reloadData()
             operations.removeAll()
             return

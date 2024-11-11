@@ -61,6 +61,15 @@ public extension FetchedResultsProviderDelegate {
     func update(section: Int) {}
 }
 
+@MainActor public struct ProviderOperation {
+    
+    enum OperationType {
+        case insert, delete, update, move
+    }
+    let operation: BlockOperation
+    let type: OperationType
+}
+
 
 public extension NSDiffableDataSourceSnapshot where SectionIdentifierType == String {
     

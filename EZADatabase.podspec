@@ -8,7 +8,7 @@
 
 Pod::Spec.new do |s|
   s.name             = 'EZADatabase'
-  s.version          = '1.2.3'
+  s.version          = '1.2.4'
   s.summary          = 'A convenient CoreData wrapper'
   s.swift_version    = '6.0'
 # This description is used to generate tags and improve search results.
