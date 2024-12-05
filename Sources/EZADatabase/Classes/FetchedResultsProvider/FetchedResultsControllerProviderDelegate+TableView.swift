@@ -125,7 +125,10 @@ public extension TableViewFetchedResultsProviderDelegate {
     
     private func performBatchesOperations() {
         
-        if operations.isEmpty { return }
+        if operations.isEmpty {
+            tableView.reloadData() // Need for case if table only had updates of cells, not inserts, deletes or moves.
+            return
+        }
         
         self.tableView.performBatchUpdates({[weak self] in
             self?.operations.forEach { $0.operation.start() }
