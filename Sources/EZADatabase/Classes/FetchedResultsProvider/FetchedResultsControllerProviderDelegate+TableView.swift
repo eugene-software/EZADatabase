@@ -69,7 +69,8 @@ public extension TableViewFetchedResultsProviderDelegate {
         guard let from = indexPath, let to = newIndexPath else { return }
         addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
             MainActor.assumeIsolated {
-                self?.tableView.moveRow(at: from, to: to)
+                self?.tableView.deleteRows(at: [from], with: self?.animationType ?? .fade)
+                self?.tableView.insertRows(at: [to], with: self?.animationType ?? .fade)
             }
             
         }, type: .move))
