@@ -40,104 +40,129 @@ import UIKit
 }
 
 public extension TableViewFetchedResultsProviderDelegate {
-    
-    var animationType: UITableView.RowAnimation {
-        return UITableView.RowAnimation.fade
-    }
-    
+
+    var animationType: UITableView.RowAnimation { .fade }
+
     func didFinishAnimation() {
-        tableView.reloadData()
+         tableView.reloadData()
     }
-    
-    func didReloadContent() {
-        tableView.reloadData()
-    }
-    
+
+    func didReloadContent() { tableView.reloadData() }
+
     func didUpdateList() {
-        
-        if tableView.window == nil || UIApplication.shared.applicationState != .active {
+        guard tableView.window != nil, UIApplication.shared.applicationState == .active else {
             tableView.reloadData()
             operations.removeAll()
             return
         }
-        
         performBatchesOperations()
     }
-    
+
     func moveObject(from indexPath: IndexPath?, to newIndexPath: IndexPath?) {
-        
         guard let from = indexPath, let to = newIndexPath else { return }
-        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
-            MainActor.assumeIsolated {
-                self?.tableView.deleteRows(at: [from], with: self?.animationType ?? .fade)
-                self?.tableView.insertRows(at: [to], with: self?.animationType ?? .fade)
-            }
-            
-        }, type: .move))
+        addToOperations(operation: ProviderOperation(
+            operation: BlockOperation { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.tableView.moveRow(at: from, to: to)
+                }
+            },
+            type: .move,
+            scope: .item
+        ))
     }
-    
+
     func insertObject(at indexPath: IndexPath?) {
-        
-        let indexPaths = [indexPath].compactMap{ $0 }
-        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
-            MainActor.assumeIsolated {
-                self?.tableView.insertRows(at: indexPaths, with: self?.animationType ?? .fade)
-            }
-        }, type: .insert))
+        guard let ip = indexPath else { return }
+        addToOperations(operation: ProviderOperation(
+            operation: BlockOperation { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.tableView.insertRows(at: [ip], with: self?.animationType ?? .fade)
+                }
+            },
+            type: .insert,
+            scope: .item
+        ))
     }
-    
+
     func deleteObject(at indexPath: IndexPath?) {
-        
-        let indexPaths = [indexPath].compactMap{ $0 }
-        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
-            MainActor.assumeIsolated {
-                self?.tableView.deleteRows(at: indexPaths, with: self?.animationType ?? .fade)
-            }
-        }, type: .delete))
+        guard let ip = indexPath else { return }
+        addToOperations(operation: ProviderOperation(
+            operation: BlockOperation { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.tableView.deleteRows(at: [ip], with: self?.animationType ?? .fade)
+                }
+            },
+            type: .delete,
+            scope: .item
+        ))
     }
-    
+
     func insert(section: Int) {
-        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
-            MainActor.assumeIsolated {
-                self?.tableView.insertSections(IndexSet(integer: section), with: self?.animationType ?? .fade)
-            }
-        }, type: .insert))
+        addToOperations(operation: ProviderOperation(
+            operation: BlockOperation { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.tableView.insertSections(IndexSet(integer: section),
+                                                  with: self?.animationType ?? .fade)
+                }
+            },
+            type: .insert,
+            scope: .section
+        ))
     }
-    
+
     func delete(section: Int) {
-        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
-            MainActor.assumeIsolated {
-                self?.tableView.deleteSections(IndexSet(integer: section), with: self?.animationType ?? .fade)
-            }
-        }, type: .delete))
+        addToOperations(operation: ProviderOperation(
+            operation: BlockOperation { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.tableView.deleteSections(IndexSet(integer: section),
+                                                  with: self?.animationType ?? .fade)
+                }
+            },
+            type: .delete,
+            scope: .section
+        ))
     }
-    
+
     func update(section: Int) {
-        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
-            MainActor.assumeIsolated {
-                self?.tableView.reloadSections(IndexSet(integer: section), with: self?.animationType ?? .fade)
-            }
-        }, type: .update))
+        addToOperations(operation: ProviderOperation(
+            operation: BlockOperation { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.tableView.reloadSections(IndexSet(integer: section),
+                                                  with: self?.animationType ?? .fade)
+                }
+            },
+            type: .update,
+            scope: .section
+        ))
     }
-    
+
     private func addToOperations(operation: ProviderOperation) {
         operations.append(operation)
     }
-    
+
     private func performBatchesOperations() {
-        
-        if operations.isEmpty {
-            tableView.reloadData() // Need for case if table only had updates of cells, not inserts, deletes or moves.
+        guard !operations.isEmpty else {
+            tableView.reloadData() // only when there was nothing granular to animate
             return
         }
-        
-        self.tableView.performBatchUpdates({[weak self] in
-            self?.operations.forEach { $0.operation.start() }
-        }, completion: {[weak self] (finished) -> Void in
+
+        // Enforce safe ordering:
+        let order: [(ProviderOperation.Scope, ProviderOperation.OperationType)] = [
+            (.section, .delete), (.section, .insert), (.section, .update),
+            (.item, .delete), (.item, .insert), (.item, .move), (.item, .update)
+        ]
+
+        let sorted = operations.sorted { lhs, rhs in
+            let il = order.firstIndex { $0.0 == lhs.scope && $0.1 == lhs.type } ?? .max
+            let ir = order.firstIndex { $0.0 == rhs.scope && $0.1 == rhs.type } ?? .max
+            return il < ir
+        }
+
+        tableView.performBatchUpdates({ [weak self] in
+            sorted.forEach { $0.operation.start() }
+        }, completion: { [weak self] _ in
             self?.operations.removeAll()
-            DispatchQueue.main.async {
-                self?.didFinishAnimation()
-            }
+            self?.didFinishAnimation()
         })
     }
 }

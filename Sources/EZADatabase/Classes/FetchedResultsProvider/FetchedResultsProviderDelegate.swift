@@ -62,12 +62,12 @@ public extension FetchedResultsProviderDelegate {
 }
 
 @MainActor public struct ProviderOperation {
-    
-    enum OperationType {
-        case insert, delete, update, move
-    }
+    enum OperationType { case insert, delete, update, move }
+    enum Scope { case section, item }
+
     let operation: BlockOperation
     let type: OperationType
+    let scope: Scope
 }
 
 

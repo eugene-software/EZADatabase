@@ -38,112 +38,144 @@ import UIKit
 }
 
 public extension CollectionViewFetchedResultsProviderDelegate {
-    
+
     func didFinishAnimation() {
-        collectionView.reloadData()
+         collectionView.reloadData()
     }
-    
+
     func didReloadContent() {
         collectionView.reloadData()
     }
-    
+
     func willUpdateList() {
+        // Good: prevents auto scrolling during animated changes.
         collectionView.setContentOffset(collectionView.contentOffset, animated: false)
     }
-    
+
     func didUpdateList() {
-        
-        if collectionView.window == nil || UIApplication.shared.applicationState != .active {
+        guard collectionView.window != nil, UIApplication.shared.applicationState == .active else {
             collectionView.reloadData()
             operations.removeAll()
             return
         }
-        
         performBatchesOperations()
     }
-    
+
+    // MARK: event -> buffered op
+
     func moveObject(from indexPath: IndexPath?, to newIndexPath: IndexPath?) {
-        
         guard let from = indexPath, let to = newIndexPath else { return }
-        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
-            MainActor.assumeIsolated {
-                self?.collectionView.deleteItems(at: [from])
-                self?.collectionView.insertItems(at: [to])
-            }
-            
-        }, type: .move))
+        addToOperations(operation: ProviderOperation(
+            operation: BlockOperation { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.collectionView.moveItem(at: from, to: to)
+                }
+            },
+            type: .move,
+            scope: .item
+        ))
     }
-    
+
     func insertObject(at indexPath: IndexPath?) {
-        
-        let indexPaths = [indexPath].compactMap{ $0 }
-        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
-            MainActor.assumeIsolated {
-                self?.collectionView.insertItems(at: indexPaths)
-            }
-        }, type: .insert))
+        guard let ip = indexPath else { return }
+        addToOperations(operation: ProviderOperation(
+            operation: BlockOperation { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.collectionView.insertItems(at: [ip])
+                }
+            },
+            type: .insert,
+            scope: .item
+        ))
     }
-    
+
     func deleteObject(at indexPath: IndexPath?) {
-        
-        let indexPaths = [indexPath].compactMap{ $0 }
-        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
-            MainActor.assumeIsolated {
-                self?.collectionView.deleteItems(at: indexPaths)
-            }
-        }, type: .delete))
+        guard let ip = indexPath else { return }
+        addToOperations(operation: ProviderOperation(
+            operation: BlockOperation { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.collectionView.deleteItems(at: [ip])
+                }
+            },
+            type: .delete,
+            scope: .item
+        ))
     }
-    
+
     func updateObject(at indexPath: IndexPath?) {
-        
-        let indexPaths = [indexPath].compactMap{ $0 }
-        if indexPaths.isEmpty { return }
-        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
-            MainActor.assumeIsolated {
-                self?.collectionView.reloadItems(at: indexPaths)
-            }
-        }, type: .update))
+        guard let ip = indexPath else { return }
+        addToOperations(operation: ProviderOperation(
+            operation: BlockOperation { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.collectionView.reloadItems(at: [ip])
+                }
+            },
+            type: .update,
+            scope: .item
+        ))
     }
-    
+
     func insert(section: Int) {
-        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
-            MainActor.assumeIsolated {
-                self?.collectionView.insertSections(IndexSet(integer: section))
-            }
-        }, type: .insert))
+        addToOperations(operation: ProviderOperation(
+            operation: BlockOperation { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.collectionView.insertSections(IndexSet(integer: section))
+                }
+            },
+            type: .insert,
+            scope: .section
+        ))
     }
-    
+
     func delete(section: Int) {
-        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
-            MainActor.assumeIsolated {
-                self?.collectionView.deleteSections(IndexSet(integer: section))
-            }
-        }, type: .delete))
+        addToOperations(operation: ProviderOperation(
+            operation: BlockOperation { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.collectionView.deleteSections(IndexSet(integer: section))
+                }
+            },
+            type: .delete,
+            scope: .section
+        ))
     }
-    
+
     func update(section: Int) {
-        addToOperations(operation: ProviderOperation(operation: BlockOperation {[weak self] in
-            MainActor.assumeIsolated {
-                self?.collectionView.reloadSections(IndexSet(integer: section))
-            }
-        }, type: .update))
+        addToOperations(operation: ProviderOperation(
+            operation: BlockOperation { [weak self] in
+                MainActor.assumeIsolated {
+                    self?.collectionView.reloadSections(IndexSet(integer: section))
+                }
+            },
+            type: .update,
+            scope: .section
+        ))
     }
-    
+
     private func addToOperations(operation: ProviderOperation) {
         operations.append(operation)
     }
-    
+
     private func performBatchesOperations() {
-        
-        if operations.isEmpty { return }
-        
-        self.collectionView.performBatchUpdates({[weak self] in
-            self?.operations.forEach { $0.operation.start() }
-        }, completion: {[weak self] (finished) -> Void in
+        guard !operations.isEmpty else { return }
+
+        // Enforce the only safe ordering for UICollectionView updates:
+        let order: [(ProviderOperation.Scope, ProviderOperation.OperationType)] = [
+            (.section, .delete), (.section, .insert), (.section, .update),
+            (.item, .delete), (.item, .insert), (.item, .move), (.item, .update)
+        ]
+
+        let sorted = operations.sorted { lhs, rhs in
+            let il = order.firstIndex { $0.0 == lhs.scope && $0.1 == lhs.type } ?? .max
+            let ir = order.firstIndex { $0.0 == rhs.scope && $0.1 == rhs.type } ?? .max
+            return il < ir
+        }
+
+        collectionView.performBatchUpdates({ [weak self] in
+            sorted.forEach { $0.operation.start() }
+        }, completion: { [weak self] _ in
             self?.operations.removeAll()
-            DispatchQueue.main.async {
-                self?.didFinishAnimation()
-            }
+            // Keep as hook; default is no-op above.
+            self?.didFinishAnimation()
         })
     }
 }
