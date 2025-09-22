@@ -105,7 +105,7 @@ public protocol DatabaseReaderProtocol {
                                        optionalPredicates: [NSPredicate]?,
                                        sorting sortDescriptors: [NSSortDescriptor],
                                        sectionName: String?,
-                                       fetchLimit: Int?) -> FetchedResultsProvider<ReadType>
+                                       fetchLimit: Int?) -> FetchedResultsProvider<ReadType>?
 }
 
 public extension DatabaseReaderProtocol {
@@ -153,7 +153,7 @@ extension EZADatabase: DatabaseReaderProtocol where T: CoreDataCompatible {
                                        optionalPredicates: [NSPredicate]?,
                                        sorting sortDescriptors: [NSSortDescriptor],
                                        sectionName: String?,
-                                              fetchLimit: Int?) -> FetchedResultsProvider<ReadType>
+                                       fetchLimit: Int?) -> FetchedResultsProvider<ReadType>?
     {
         return Reader<ReadType>.fetchedResultsProvider(mainPredicate: mainPredicate,
                                                        optionalPredicates: optionalPredicates,

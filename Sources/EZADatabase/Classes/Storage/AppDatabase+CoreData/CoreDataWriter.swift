@@ -39,7 +39,8 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
         
         return Deferred {
             return Future { promise in
-                CoreDataStorageController.shared.delete(WriteType.ManagedType.self, with: predicate) {
+                Task {
+                    await CoreDataStorageController.shared.delete(WriteType.ManagedType.self, with: predicate)
                     promise(.success(()))
                 }
             }
@@ -53,7 +54,8 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
         
         return Deferred {
             return Future { promise in
-                CoreDataStorageController.shared.insertList(objects: objectsToImport) {
+                Task {
+                    await CoreDataStorageController.shared.insertList(objects: objectsToImport)
                     promise(.success(()))
                 }
             }
@@ -67,7 +69,8 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
         
         return Deferred {
             return Future { promise in
-                CoreDataStorageController.shared.insertAsync(object: objectToImport, predicate: predicate) {
+                Task {
+                    await CoreDataStorageController.shared.insertAsync(object: objectToImport, predicate: predicate)
                     promise(.success(()))
                 }
             }
@@ -81,7 +84,8 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
         
         return Deferred {
             return Future { promise in
-                CoreDataStorageController.shared.setValues(type: entity, values: values, predicate: predicate) {
+                Task {
+                    await CoreDataStorageController.shared.setValues(type: entity, values: values, predicate: predicate)
                     promise(.success(()))
                 }
             }

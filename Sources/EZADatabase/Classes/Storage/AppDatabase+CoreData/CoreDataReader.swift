@@ -49,18 +49,14 @@ extension CoreDataReader: DatabaseReaderProtocol where ExportedType: CoreDataCom
         
         return Deferred {
             return Future { promise in
-                
-                let controller = CoreDataStorageController.shared
-                
-                let completion: (([ReadType.ManagedType]?) -> Void) = { result in
-                    
+                Task {
+                    let controller = CoreDataStorageController.shared
+                    let result: [ReadType.ManagedType]? = await controller.asyncList(predicate: predicate,
+                                                                                      sortDescriptors: sort,
+                                                                                      fetchLimit: 1)
                     let object = result?.first?.getObject() as? ReadType
                     promise(.success(object))
                 }
-                controller.asyncList(predicate: predicate,
-                                     sortDescriptors: sort,
-                                     fetchLimit: 1,
-                                     completion: completion)
             }
         }
         .receive(on: DispatchQueue.main)
@@ -72,20 +68,16 @@ extension CoreDataReader: DatabaseReaderProtocol where ExportedType: CoreDataCom
         
         return Deferred {
             return Future { promise in
-                let controller = CoreDataStorageController.shared
-                
-                let completion: (([ReadType.ManagedType]?) -> Void) = { result in
-                    
+                Task {
+                    let controller = CoreDataStorageController.shared
+                    let result: [ReadType.ManagedType]? = await controller.asyncList(predicate: predicate,
+                                                                                      sortDescriptors: nil,
+                                                                                      fetchLimit: nil)
                     let mapped = result?.compactMap { obj in
                         return obj.getObject() as? ReadType
                     }
                     promise(.success(mapped))
                 }
-                
-                controller.asyncList(predicate: predicate,
-                                     sortDescriptors: nil,
-                                     fetchLimit: nil,
-                                     completion: completion)
             }
         }
         .receive(on: DispatchQueue.main)
@@ -100,8 +92,11 @@ extension CoreDataReader: DatabaseReaderProtocol where ExportedType: CoreDataCom
             sort.append(.init(key: ReadType.primaryKeyName, ascending: true))
         }
         
-        let publisher: AnyPublisher<[ReadType.ManagedType], Error> = 
-        CoreDataStorageController.shared.viewContext.publisher(predicate: predicate, sort: sort)
+        guard CoreDataStorageController.shared.isStoreLoaded else {
+            return Fail(error: EZADatabaseError.databaseNotInitialized).eraseToAnyPublisher()
+        }
+        let publisher: AnyPublisher<[ReadType.ManagedType], Error> =
+            CoreDataStorageController.shared.viewContext.publisher(predicate: predicate, sort: sort)
         return publisher
             .map {
                 $0.compactMap { $0.getObject() as? ReadType }
@@ -113,7 +108,7 @@ extension CoreDataReader: DatabaseReaderProtocol where ExportedType: CoreDataCom
                                        optionalPredicates: [NSPredicate]?,
                                        sorting sortDescriptors: [NSSortDescriptor],
                                        sectionName: String?,
-                                       fetchLimit: Int?) -> FetchedResultsProvider<ReadType>
+                                       fetchLimit: Int?) -> FetchedResultsProvider<ReadType>?
     {
         
         let controller = CoreDataStorageController.shared

@@ -41,11 +41,12 @@ public extension EZADatabase where T == Any {
         
         return Deferred {
             Future { promise in
-                CoreDataStorageController.shared.loadStore { error in
-                    if let err = error {
-                        promise(.failure(err))
-                    } else {
+                Task {
+                    do {
+                        try await CoreDataStorageController.shared.loadStore()
                         promise(.success(()))
+                    } catch {
+                        promise(.failure(error))
                     }
                 }
             }
@@ -59,11 +60,12 @@ public extension EZADatabase where T == Any {
             Future { promise in
                 let tablesToKeepNames = tablesToKeep.map { String(describing: $0) }
                 
-                CoreDataStorageController.shared.deleteAllTables(except: tablesToKeepNames) { error in
-                    if let err = error {
-                        promise(.failure(err))
-                    } else {
+                Task {
+                    do {
+                        try await CoreDataStorageController.shared.deleteAllTables(except: tablesToKeepNames)
                         promise(.success(()))
+                    } catch {
+                        promise(.failure(error))
                     }
                 }
             }
@@ -83,11 +85,12 @@ public extension EZADatabase where T == Any {
         
         return Deferred {
             Future { promise in
-                CoreDataStorageController.shared.destroy() { error in
-                    if let err = error {
-                        promise(.failure(err))
-                    } else {
+                Task {
+                    do {
+                        try await CoreDataStorageController.shared.destroy()
                         promise(.success(()))
+                    } catch {
+                        promise(.failure(error))
                     }
                 }
             }

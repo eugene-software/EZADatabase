@@ -44,34 +44,47 @@ class CoreDataStorageController: NSObject, @unchecked Sendable {
     
     //Private Properties
     //
-    private var persistentContainer: NSPersistentContainer!
+	private var persistentContainer: NSPersistentContainer?
     private var backgroundContext: NSManagedObjectContext?
     
     //Public Properties
     //
-    var viewContext: NSManagedObjectContext {
-        return persistentContainer.viewContext
-    }
+	var isStoreLoaded: Bool { persistentContainer != nil }
+
+	var viewContext: NSManagedObjectContext {
+		guard let container = persistentContainer else {
+			preconditionFailure("EZADatabase is not initialized. Call EZADatabase.openDatabase() before accessing viewContext.")
+		}
+		return container.viewContext
+	}
     
-    func loadStore(completionClosure: ((Error?) -> Void)?) {
-        
-        guard let containerName = Bundle.main.infoDictionary?[Self.kEZADatabaseModelName] as? String else {
-            fatalError("EZADatabaseModelName should be specified in Info.plist. Make sure it's equal to .xcdatamodel file name")
-        }
-        
-        persistentContainer = FrameworkPersistentContainer(name: containerName)
-        persistentContainer.loadPersistentStores() { (description, error) in
-            completionClosure?(error)
-        }
-        
-        // Initialize background context to perform all operations in background.
-        //
-        backgroundContext = persistentContainer.newBackgroundContext()
-        backgroundContext?.undoManager = nil
-        backgroundContext?.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
-        backgroundContext?.automaticallyMergesChangesFromParent = true
-        persistentContainer.viewContext.automaticallyMergesChangesFromParent = true
-        persistentContainer.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+    // Old completion-based API removed in favor of async/await
+
+    // MARK: - Async/Await API
+    /// Loads persistent stores using async/await.
+    /// - Throws: Propagates errors from `loadPersistentStores`.
+    func loadStore() async throws {
+		guard let containerName = Bundle.main.infoDictionary?[Self.kEZADatabaseModelName] as? String else {
+			fatalError("EZADatabaseModelName should be specified in Info.plist. Make sure it's equal to .xcdatamodel file name")
+		}
+		let container = FrameworkPersistentContainer(name: containerName)
+		try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+			container.loadPersistentStores { _, error in
+				if let error = error {
+					continuation.resume(throwing: error)
+				} else {
+					continuation.resume(returning: ())
+				}
+			}
+		}
+		// Assign and initialize contexts after stores are loaded
+		persistentContainer = container
+		backgroundContext = container.newBackgroundContext()
+		backgroundContext?.undoManager = nil
+		backgroundContext?.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+		backgroundContext?.automaticallyMergesChangesFromParent = true
+		container.viewContext.automaticallyMergesChangesFromParent = true
+		container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
     }
 }
 
@@ -80,88 +93,82 @@ class CoreDataStorageController: NSObject, @unchecked Sendable {
 
 extension CoreDataStorageController: CoreDataStorageInterface {
     
-    func destroy(completion: ((Error?) -> Void)?) {
-        
+    func destroy() async throws {
         backgroundContext?.reset()
         viewContext.reset()
-        defer {
-            backgroundContext = nil
-        }
-        
-        do {
-            let coordinator = persistentContainer.persistentStoreCoordinator
+        defer { backgroundContext = nil }
+		do {
+			guard let persistentContainer = persistentContainer else { throw NSError(domain: "EZADatabase", code: -1) }
+			let coordinator = persistentContainer.persistentStoreCoordinator
             let stores = coordinator.persistentStores
             for store in stores {
                 guard let url = store.url else { continue }
                 try coordinator.destroyPersistentStore(at: url, ofType: store.type, options: nil)
             }
-            completion?(nil)
         } catch {
-            completion?(error)
+            throw error
         }
     }
     
-    func deleteAllTables(except names: [String], completion: ((Error?) -> Void)?) {
-        
-        let context = backgroundContext
-        let allEntitiyNames = persistentContainer.managedObjectModel.entities.compactMap { $0.name }
+    func deleteAllTables(except names: [String]) async throws {
+		let context = backgroundContext
+		guard let persistentContainer = persistentContainer else { throw EZADatabaseError.persistentContainerUnavailable }
+		let allEntitiyNames = persistentContainer.managedObjectModel.entities.compactMap { $0.name }
         let toBeRemoved = allEntitiyNames.filter { !names.contains($0) }
-        
-        save {
-            do {
-                for name in toBeRemoved {
-                    let fetchRequest: NSFetchRequest<NSFetchRequestResult> = NSFetchRequest(entityName: name)
-                    let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
-                    try context?.executeAndMergeChanges(using: deleteRequest)
+        try await withCheckedThrowingContinuation { continuation in
+            self.save {
+                do {
+                    for name in toBeRemoved {
+                        let fetchRequest: NSFetchRequest<NSFetchRequestResult> = NSFetchRequest(entityName: name)
+                        let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
+                        try context?.executeAndMergeChanges(using: deleteRequest)
+                    }
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
                 }
-            } catch {
-                completion?(error)
+            } completionBlock: {
+                // no-op; continuation already resumed
             }
-        } completionBlock: {
-            completion?(nil)
         }
     }
     
-    func setValues<Type: CoreDataCompatible>(type: Type.Type, values: [String: Any?], predicate: NSPredicate?, completion: @escaping () -> Void) {
-        
+    func setValues<Type: CoreDataCompatible>(type: Type.Type, values: [String: Any?], predicate: NSPredicate?) async {
         let context = backgroundContext
-        
         let entityName = String(describing: Type.ManagedType.self)
         let fetchRequest = NSFetchRequest<Type.ManagedType>(entityName: entityName)
         fetchRequest.predicate = predicate
-        
-        save {
-            let result = context?.safeFetch(fetchRequest)
-            result?.forEach({ (obj) in
-                
-                values.forEach { (key, value) in
-                    
-                    let old = obj.value(forKey: key)
-                    let oldString = String(describing: old)
-                    let newString = String(describing: value)
-                    
-                    if oldString != newString {
-                        obj.setValue(value, forKeyPath: key)
-                    } else {
-                        print("Old: \(oldString), New: \(newString)")
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            self.save {
+                let result = context?.safeFetch(fetchRequest)
+                result?.forEach({ (obj) in
+                    values.forEach { (key, value) in
+                        let old = obj.value(forKey: key)
+                        let oldString = String(describing: old)
+                        let newString = String(describing: value)
+                        if oldString != newString {
+                            obj.setValue(value, forKeyPath: key)
+                        }
                     }
-                }
-            })
-        } completionBlock: {
-            completion()
+                })
+            } completionBlock: {
+                continuation.resume()
+            }
         }
     }
     
     func findRelation<Type: CoreDataExportable>(predicate: NSPredicate?) -> Type? {
-        let result: [Type]? = query(predicate: predicate, context: backgroundContext!, sortDescriptors: nil, fetchLimit: 1)
+		guard let context = backgroundContext else { return nil }
+		let result: [Type]? = query(predicate: predicate, context: context, sortDescriptors: nil, fetchLimit: 1)
         return result?.first
     }
     
     func insertSync<Type: CoreDataCompatible>(object: Type?, predicate: NSPredicate?) -> Type.ManagedType? {
         
         guard let object = object else { return nil }
-        let predicate = predicate ?? NSPredicate(key: Type.primaryKeyName, value: object.primaryKey)
-        return self.insert(object: object, predicate: predicate, context: self.backgroundContext!)
+		let predicate = predicate ?? NSPredicate(key: Type.primaryKeyName, value: object.primaryKey)
+		guard let context = self.backgroundContext else { return nil }
+		return self.insert(object: object, predicate: predicate, context: context)
     }
     
     func fetchedResultsProvider<Type: CoreDataCompatible>(mainPredicate: NSPredicate,
@@ -170,6 +177,9 @@ extension CoreDataStorageController: CoreDataStorageInterface {
                                                           sectionName: String?,
                                                           fetchLimit: Int?) -> FetchedResultsProvider<Type>
     {
+        guard persistentContainer != nil else {
+            preconditionFailure("EZADatabase is not initialized. Call EZADatabase.openDatabase() before creating FetchedResultsProvider.")
+        }
         return FetchedResultsProvider<Type>(mainPredicate,
                                             optionalPredicates: optionalPredicates,
                                             sorting: sortDescriptors,
@@ -178,40 +188,34 @@ extension CoreDataStorageController: CoreDataStorageInterface {
                                             fetchLimit: fetchLimit)
     }
     
-    func insertList<Type: CoreDataCompatible>(objects: [Type?], completion: @escaping () -> Void) {
-        
-        let objects = objects.compactMap{$0}.chunked(into: 1000)
-        let group = DispatchGroup()
-        
-        objects.forEach { chunk in
-            group.enter()
-            save {
-                chunk.forEach {
-                    let predicate = NSPredicate(key: Type.primaryKeyName, value: $0.primaryKey)
-                    self.insert(object: $0, predicate: predicate, context: self.backgroundContext!)
+    func insertList<Type: CoreDataCompatible>(objects: [Type?]) async {
+        let chunks = objects.compactMap{$0}.chunked(into: 1000)
+        for chunk in chunks {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                self.save {
+                    chunk.forEach {
+					guard let context = self.backgroundContext else { return }
+					let predicate = NSPredicate(key: Type.primaryKeyName, value: $0.primaryKey)
+					self.insert(object: $0, predicate: predicate, context: context)
+                    }
+                } completionBlock: {
+                    continuation.resume()
                 }
-            } completionBlock: {
-                group.leave()
             }
-        }
-        
-        group.notify(queue: .main) {
-            completion()
         }
     }
     
-    func insertAsync<Type: CoreDataCompatible>(object: Type?, predicate: NSPredicate?, completion: @escaping () -> Void) {
-        
-        guard let object = object else {
-            completion()
-            return
-        }
-        save {
-            let predicate = predicate ?? NSPredicate(key: Type.primaryKeyName, value: object.primaryKey)
-            self.insert(object: object, predicate: predicate, context: self.backgroundContext!)
-        } completionBlock: {
-            completion()
-        }
+    func insertAsync<Type: CoreDataCompatible>(object: Type?, predicate: NSPredicate?) async {
+        guard let object = object else { return }
+		await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+			self.save {
+				guard let context = self.backgroundContext else { return }
+				let predicate = predicate ?? NSPredicate(key: Type.primaryKeyName, value: object.primaryKey)
+				self.insert(object: object, predicate: predicate, context: context)
+			} completionBlock: {
+				continuation.resume()
+			}
+		}
     }
     
     func list<Type: CoreDataExportable>(predicate: NSPredicate?,
@@ -221,35 +225,34 @@ extension CoreDataStorageController: CoreDataStorageInterface {
     }
     
     func asyncList<Type: CoreDataExportable>(predicate: NSPredicate?,
-                                              sortDescriptors: [NSSortDescriptor]?,
-                                              fetchLimit: Int?,
-                                              completion: @escaping ([Type]?) -> Void) {
-        
+                                             sortDescriptors: [NSSortDescriptor]?,
+                                             fetchLimit: Int?) async -> [Type]? {
         let context = backgroundContext
-        
-        context?.perform { [weak self] in
-            let result: [Type]? = self?.query(predicate: predicate, context: context!, sortDescriptors: sortDescriptors, fetchLimit: fetchLimit)
-            completion(result)
-        }
+		return await withCheckedContinuation { (continuation: CheckedContinuation<[Type]?, Never>) in
+			context?.perform { [weak self] in
+				guard let context = context else { continuation.resume(returning: nil); return }
+				let result: [Type]? = self?.query(predicate: predicate, context: context, sortDescriptors: sortDescriptors, fetchLimit: fetchLimit)
+				continuation.resume(returning: result)
+			}
+		}
     }
     
-    func delete<Type: CoreDataExportable>(_ type: Type.Type, with predicate: NSPredicate?, completion: @escaping () -> Void) {
-        
+    func delete<Type: CoreDataExportable>(_ type: Type.Type, with predicate: NSPredicate?) async {
         let context = backgroundContext
-        
         let entityName = String(describing: Type.self)
         let fetchRequest = NSFetchRequest<Type>(entityName: entityName)
         fetchRequest.predicate = predicate
-        
-        save {
-            if let result = context?.safeFetch(fetchRequest), !result.isEmpty {
-                result.forEach { (obj) in
-                    context?.delete(obj)
-                }
-            }
-        } completionBlock: {
-            completion()
-        }
+		await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+			self.save {
+				if let result = context?.safeFetch(fetchRequest), !result.isEmpty {
+					result.forEach { (obj) in
+						context?.delete(obj)
+					}
+				}
+			} completionBlock: {
+				continuation.resume()
+			}
+		}
     }
     
     func compute<Type: CoreDataExportable>(_ type: Type.Type, operation: String, keyPath: String, predicate: NSPredicate?) -> Int? {
@@ -346,7 +349,6 @@ private extension NSManagedObjectContext {
         do {
             try save()
         } catch {
-//            Crashlytics.crashlytics().record(error: error)
             fatalError("Error  saving context: \(error)")
         }
     }

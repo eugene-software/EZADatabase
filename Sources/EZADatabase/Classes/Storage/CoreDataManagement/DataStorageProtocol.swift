@@ -70,20 +70,16 @@ public protocol CoreDataExportable: NSManagedObject {
 public protocol CoreDataStorageInterface {
     
     /// Deletes all tables of database excepting a list of passed table names
-    /// - Parameters:
-    ///   - names: table names which should be kept after delete
-    ///   - completion: a completion performed on main thread
-    ///
-    func deleteAllTables(except names: [String], completion: ((Error?) -> Void)?)
+    /// - Parameter names: table names which should be kept after delete
+    /// - Throws: error if deletion fails
+    func deleteAllTables(except names: [String]) async throws
     
     /// Sets values to particular objects by NSPredicate
     /// - Parameters:
     ///   - type: A CoreDataCompatible objects list from which a new is to be created/updated
     ///   - values: a key-value dictionary which should be updated
     ///   - predicate: Predicate for search
-    ///   - completion: a completion performed on main thread
-    ///
-    func setValues<Type: CoreDataCompatible>(type: Type.Type, values: [String: Any?], predicate: NSPredicate?, completion: @escaping () -> Void)
+    func setValues<Type: CoreDataCompatible>(type: Type.Type, values: [String: Any?], predicate: NSPredicate?) async
     
     /// Synchronously insert a new object or updates existing one
     /// - Parameters:
@@ -96,17 +92,13 @@ public protocol CoreDataStorageInterface {
     /// Asynchronously inserts a list of new objects or replace existing ones by primary keys
     /// - Parameters:
     ///   - objects: A CoreDataCompatible objects list from which a new is to be created/updated
-    ///   - completion: a completion performed on main thread
-    ///
-    func insertList<Type: CoreDataCompatible>(objects: [Type?], completion: @escaping () -> Void)
+    func insertList<Type: CoreDataCompatible>(objects: [Type?]) async
     
     /// Asynchronously inserts new objector replace existing one by primary key
     /// - Parameters:
     ///   - object: A CoreDataCompatible object from which a new one is to be created/updated
     ///   - predicate: Predicate for search
-    ///   - completion: a completion performed on main thread
-    ///
-    func insertAsync<Type: CoreDataCompatible>(object: Type?, predicate: NSPredicate?, completion: @escaping () -> Void)
+    func insertAsync<Type: CoreDataCompatible>(object: Type?, predicate: NSPredicate?) async
     
     /// Synchronously find an object by predicate or returns nil
     /// - Parameters:
@@ -131,20 +123,15 @@ public protocol CoreDataStorageInterface {
     ///   - predicate: a predicate to fetch needed data
     ///   - sortDescriptors: sorting options
     ///   - fetchLimit: limit of objects to fetch
-    ///   - completion: a completion performed on main thread and contains fetched objects
-    ///
     func asyncList<Type: CoreDataExportable>(predicate: NSPredicate?,
                                               sortDescriptors: [NSSortDescriptor]?,
-                                              fetchLimit: Int?,
-                                              completion: @escaping ([Type]?) -> Void)
+                                              fetchLimit: Int?) async -> [Type]?
     
     /// Deletes a list of objects by passed NSPredicate
     /// - Parameters:
     ///   - type: CoreDataCompatible object custom type
     ///   - predicate: a predicate to delete needed data
-    ///   - completion: a completion performed on context's thread
-    ///
-    func delete<Type: CoreDataExportable>(_ type: Type.Type, with predicate: NSPredicate?, completion: @escaping () -> Void)
+    func delete<Type: CoreDataExportable>(_ type: Type.Type, with predicate: NSPredicate?) async
     
     /// Computes Integer result
     /// - Parameters:
