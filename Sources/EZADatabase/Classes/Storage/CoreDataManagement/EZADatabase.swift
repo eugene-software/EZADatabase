@@ -36,22 +36,9 @@ public class EZADatabase<T> {
 }
 
 public extension EZADatabase where T == Any {
-    
-    static func openDatabase() -> AnyPublisher<Void, Error> {
-        
-        return Deferred {
-            Future { promise in
-                Task {
-                    do {
-                        try await CoreDataStorageController.shared.loadStore()
-                        promise(.success(()))
-                    } catch {
-                        promise(.failure(error))
-                    }
-                }
-            }
-        }
-        .eraseToAnyPublisher()
+
+    static func openDatabase() {
+        CoreDataStorageController.shared.loadStore()
     }
     
     static func deleteDatabase(keeping tablesToKeep: [NSManagedObject.Type]) -> AnyPublisher<Void, Error> {
@@ -59,7 +46,6 @@ public extension EZADatabase where T == Any {
         return Deferred {
             Future { promise in
                 let tablesToKeepNames = tablesToKeep.map { String(describing: $0) }
-                
                 Task {
                     do {
                         try await CoreDataStorageController.shared.deleteAllTables(except: tablesToKeepNames)
@@ -75,7 +61,7 @@ public extension EZADatabase where T == Any {
     
     static func reloadDatabase() -> AnyPublisher<Void, Error> {
         return deleteDatabase(keeping: [])
-            .flatMap {
+            .map {
                 openDatabase()
             }
             .eraseToAnyPublisher()

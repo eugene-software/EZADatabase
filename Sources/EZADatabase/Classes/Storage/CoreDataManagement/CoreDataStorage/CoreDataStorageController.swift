@@ -57,26 +57,24 @@ class CoreDataStorageController: NSObject, @unchecked Sendable {
 		}
 		return container.viewContext
 	}
-    
-    // Old completion-based API removed in favor of async/await
 
-    // MARK: - Async/Await API
-    /// Loads persistent stores using async/await.
-    /// - Throws: Propagates errors from `loadPersistentStores`.
-    func loadStore() async throws {
+    // MARK: - Initialization
+    /// Loads persistent stores synchronously.
+    func loadStore() {
 		guard let containerName = Bundle.main.infoDictionary?[Self.kEZADatabaseModelName] as? String else {
 			fatalError("EZADatabaseModelName should be specified in Info.plist. Make sure it's equal to .xcdatamodel file name")
 		}
+        let semaphore = DispatchSemaphore(value: 0)
 		let container = FrameworkPersistentContainer(name: containerName)
-		try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-			container.loadPersistentStores { _, error in
-				if let error = error {
-					continuation.resume(throwing: error)
-				} else {
-					continuation.resume(returning: ())
-				}
-			}
-		}
+        DispatchQueue.coreDataConcurrent.async {
+            container.loadPersistentStores { _, error in
+                if let error {
+                    fatalError(error.localizedDescription)
+                }
+                semaphore.signal()
+            }
+        }
+        semaphore.wait()
 		// Assign and initialize contexts after stores are loaded
 		persistentContainer = container
 		backgroundContext = container.newBackgroundContext()
