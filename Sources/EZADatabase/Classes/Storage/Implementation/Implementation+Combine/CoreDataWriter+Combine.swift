@@ -29,9 +29,7 @@ import Foundation
 import Combine
 import CoreData
 
-class CoreDataWriter<ImportedType> {}
-
-extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCompatible {
+extension CoreDataWriter: DatabaseWriterProtocolCombine where ImportedType: CoreDataCompatible {
     
     typealias WriteType = ImportedType
     
@@ -40,13 +38,15 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
         return Deferred {
             return Future { promise in
                 Task {
-                    await CoreDataStorageController.shared.delete(WriteType.ManagedType.self, with: predicate)
-                    promise(.success(()))
+                    do {
+                        try await deleteEntities(entity, predicate: predicate)
+                        promise(.success(()))
+                    } catch {
+                        promise(.failure(error))
+                    }
                 }
             }
         }
-        .receive(on: DispatchQueue.main)
-        .setFailureType(to: Error.self)
         .eraseToAnyPublisher()
     }
     
@@ -55,13 +55,15 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
         return Deferred {
             return Future { promise in
                 Task {
-                    await CoreDataStorageController.shared.insertList(objects: objectsToImport)
-                    promise(.success(()))
+                    do {
+                        try await importRemoteList(objectsToImport)
+                        promise(.success(()))
+                    } catch {
+                        promise(.failure(error))
+                    }
                 }
             }
         }
-        .receive(on: DispatchQueue.main)
-        .setFailureType(to: Error.self)
         .eraseToAnyPublisher()
     }
     
@@ -70,13 +72,15 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
         return Deferred {
             return Future { promise in
                 Task {
-                    await CoreDataStorageController.shared.insertAsync(object: objectToImport, predicate: predicate)
-                    promise(.success(()))
+                    do {
+                        try await updateRemote(objectToImport, predicate: predicate)
+                        promise(.success(()))
+                    } catch {
+                        promise(.failure(error))
+                    }
                 }
             }
         }
-        .receive(on: DispatchQueue.main)
-        .setFailureType(to: Error.self)
         .eraseToAnyPublisher()
     }
     
@@ -85,13 +89,15 @@ extension CoreDataWriter: DatabaseWriterProtocol where ImportedType: CoreDataCom
         return Deferred {
             return Future { promise in
                 Task {
-                    await CoreDataStorageController.shared.setValues(type: entity, values: values, predicate: predicate)
-                    promise(.success(()))
+                    do {
+                        try await importValues(entity, predicate: predicate, values: values)
+                        promise(.success(()))
+                    } catch {
+                        promise(.failure(error))
+                    }
                 }
             }
         }
-        .receive(on: DispatchQueue.main)
-        .setFailureType(to: Error.self)
         .eraseToAnyPublisher()
     }
 }

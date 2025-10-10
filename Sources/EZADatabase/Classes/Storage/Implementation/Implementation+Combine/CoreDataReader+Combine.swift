@@ -29,9 +29,7 @@ import Foundation
 import CoreData
 import Combine
 
-class CoreDataReader<ExportedType> { }
-
-extension CoreDataReader: DatabaseReaderProtocol where ExportedType: CoreDataCompatible {
+extension CoreDataReader: DatabaseReaderProtocolCombine where ExportedType: CoreDataCompatible {
     
     typealias ReadType = ExportedType
     
@@ -50,17 +48,15 @@ extension CoreDataReader: DatabaseReaderProtocol where ExportedType: CoreDataCom
         return Deferred {
             return Future { promise in
                 Task {
-                    let controller = CoreDataStorageController.shared
-                    let result: [ReadType.ManagedType]? = await controller.asyncList(predicate: predicate,
-                                                                                      sortDescriptors: sort,
-                                                                                      fetchLimit: 1)
-                    let object = result?.first?.getObject() as? ReadType
-                    promise(.success(object))
+                    do {
+                        let object = try await exportRemote(predicate: predicate, sort: sort)
+                        promise(.success(object))
+                    } catch {
+                        promise(.failure(error))
+                    }
                 }
             }
         }
-        .receive(on: DispatchQueue.main)
-        .setFailureType(to: Error.self)
         .eraseToAnyPublisher()
     }
     
@@ -69,19 +65,15 @@ extension CoreDataReader: DatabaseReaderProtocol where ExportedType: CoreDataCom
         return Deferred {
             return Future { promise in
                 Task {
-                    let controller = CoreDataStorageController.shared
-                    let result: [ReadType.ManagedType]? = await controller.asyncList(predicate: predicate,
-                                                                                      sortDescriptors: nil,
-                                                                                      fetchLimit: nil)
-                    let mapped = result?.compactMap { obj in
-                        return obj.getObject() as? ReadType
+                    do {
+                        let objects = try await exportRemoteList(predicate: predicate, sort: sort)
+                        promise(.success(objects))
+                    } catch {
+                        promise(.failure(error))
                     }
-                    promise(.success(mapped))
                 }
             }
         }
-        .receive(on: DispatchQueue.main)
-        .setFailureType(to: Error.self)
         .eraseToAnyPublisher()
     }
     
