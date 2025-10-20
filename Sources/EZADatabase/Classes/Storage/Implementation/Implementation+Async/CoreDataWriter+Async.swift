@@ -34,7 +34,7 @@ extension CoreDataWriter: DatabaseWriterProtocolAsync where ImportedType: CoreDa
     typealias WriteTypeAsync = ImportedType
 
     static func deleteEntities(_ entity: WriteTypeAsync.Type, predicate: NSPredicate?) async throws {
-        await CoreDataStorageController.shared.delete(WriteTypeAsync.ManagedType.self, with: predicate)
+        try await CoreDataStorageController.shared.delete(WriteTypeAsync.ManagedType.self, with: predicate)
     }
     
     static func importRemoteList(_ objectsToImport: [WriteTypeAsync?]) async throws {

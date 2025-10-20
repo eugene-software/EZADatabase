@@ -131,8 +131,8 @@ public protocol CoreDataStorageInterface {
     /// - Parameters:
     ///   - type: CoreDataCompatible object custom type
     ///   - predicate: a predicate to delete needed data
-    func delete<Type: CoreDataExportable>(_ type: Type.Type, with predicate: NSPredicate?) async
-    
+    func delete<Type: CoreDataExportable>(_ type: Type.Type, with predicate: NSPredicate?) async throws
+
     /// Computes Integer result
     /// - Parameters:
     ///   - type: CoreDataCompatible object custom type

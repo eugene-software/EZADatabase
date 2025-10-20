@@ -235,22 +235,25 @@ extension CoreDataStorageController: CoreDataStorageInterface {
 		}
     }
     
-    func delete<Type: CoreDataExportable>(_ type: Type.Type, with predicate: NSPredicate?) async {
+    func delete<Type: CoreDataExportable>(_ type: Type.Type, with predicate: NSPredicate?) async throws {
         let context = backgroundContext
         let entityName = String(describing: Type.self)
-        let fetchRequest = NSFetchRequest<Type>(entityName: entityName)
+        let fetchRequest = NSFetchRequest<NSFetchRequestResult>(entityName: entityName)
         fetchRequest.predicate = predicate
-		await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-			self.save {
-				if let result = context?.safeFetch(fetchRequest), !result.isEmpty {
-					result.forEach { (obj) in
-						context?.delete(obj)
-					}
-				}
-			} completionBlock: {
-				continuation.resume()
-			}
-		}
+
+        try await withCheckedThrowingContinuation { continuation in
+            self.save {
+                do {
+                    let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
+                    try context?.executeAndMergeChanges(using: deleteRequest)
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            } completionBlock: {
+                // no-op; continuation already resumed
+            }
+        }
     }
     
     func compute<Type: CoreDataExportable>(_ type: Type.Type, operation: String, keyPath: String, predicate: NSPredicate?) -> Int? {
