@@ -75,9 +75,14 @@ where S.Input == [T], S.Failure == Error {
         resultsController?.delegate = self
         do {
             try resultsController?.performFetch()
-            _ = self.subscriber?.receive(resultsController?.fetchedObjects ?? [])
+            context.perform { [weak self] in
+                guard let self else { return }
+                _ = subscriber?.receive(resultsController?.fetchedObjects ?? [])
+            }
         } catch {
-            self.subscriber?.receive(completion: .failure(error))
+            context.perform { [weak self] in
+                self?.subscriber?.receive(completion: .failure(error))
+            }
         }
     }
     
@@ -91,6 +96,9 @@ where S.Input == [T], S.Failure == Error {
     }
     
     public func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
-        _ = self.subscriber?.receive(resultsController?.fetchedObjects ?? [])
+        context.perform { [weak self] in
+            guard let self else { return }
+            _ = subscriber?.receive(resultsController?.fetchedObjects ?? [])
+        }
     }
 }
