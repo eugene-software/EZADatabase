@@ -31,10 +31,15 @@ import Combine
 
 extension NSManagedObjectContext {
     
-    func publisher<T: NSManagedObject>(predicate: NSPredicate? = nil, sort: [NSSortDescriptor]? = nil) -> AnyPublisher<[T], Error> {
+    func publisher<T: NSManagedObject>(predicate: NSPredicate? = nil, sort: [NSSortDescriptor]? = nil, limit: Int? = nil) -> AnyPublisher<[T], Error> {
         let request = NSFetchRequest<T>(entityName: String(describing: T.self))
         request.predicate = predicate
         request.sortDescriptors = sort
+
+        if let limit {
+            request.fetchLimit = limit
+        }
+        
         return FetchPublisher(request: request, context: self)
             .eraseToAnyPublisher()
     }

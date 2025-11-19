@@ -77,8 +77,8 @@ extension CoreDataReader: DatabaseReaderProtocolCombine where ExportedType: Core
         .eraseToAnyPublisher()
     }
     
-    static func observe(predicate: NSPredicate?, sort: [NSSortDescriptor]?) -> AnyPublisher<[ReadType], Error> {
-        
+    static func observe(predicate: NSPredicate?, sort: [NSSortDescriptor]?, limit: Int?) -> AnyPublisher<[ReadType], Error> {
+
         var sort = sort ?? []
         if sort.count == 0 {
             sort.append(.init(key: ReadType.primaryKeyName, ascending: true))
@@ -87,8 +87,10 @@ extension CoreDataReader: DatabaseReaderProtocolCombine where ExportedType: Core
         guard CoreDataStorageController.shared.isStoreLoaded else {
             return Fail(error: EZADatabaseError.databaseNotInitialized).eraseToAnyPublisher()
         }
-        let publisher: AnyPublisher<[ReadType.ManagedType], Error> =
-            CoreDataStorageController.shared.viewContext.publisher(predicate: predicate, sort: sort)
+
+        let context = CoreDataStorageController.shared.newBackgroundContext() ?? CoreDataStorageController.shared.viewContext
+        let publisher: AnyPublisher<[ReadType.ManagedType], Error> = context.publisher(predicate: predicate, sort: sort, limit: limit)
+
         return publisher
             .map {
                 $0.compactMap { $0.getObject() as? ReadType }

@@ -51,6 +51,13 @@ class CoreDataStorageController: NSObject, @unchecked Sendable {
     //
 	var isStoreLoaded: Bool { persistentContainer != nil }
 
+    func newBackgroundContext() -> NSManagedObjectContext? {
+        let context = persistentContainer?.newBackgroundContext()
+        context?.undoManager = nil
+        context?.automaticallyMergesChangesFromParent = true
+        return context
+    }
+
 	var viewContext: NSManagedObjectContext {
 		guard let container = persistentContainer else {
 			preconditionFailure("EZADatabase is not initialized. Call EZADatabase.openDatabase() before accessing viewContext.")

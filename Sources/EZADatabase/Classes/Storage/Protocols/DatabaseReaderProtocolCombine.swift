@@ -47,9 +47,10 @@ public protocol DatabaseReaderProtocolCombine {
     /// - Parameters:
     ///   - predicate: predicate for searching
     ///   - sort: sort descriptors for ordering
+    ///   - limit: maximum number of objects to fetch and emit per update (maps to Core Data fetchLimit). Pass nil for no limit.
     /// - Returns: A publisher with a list of objects
     ///
-    static func observe(predicate: NSPredicate?, sort: [NSSortDescriptor]?) -> AnyPublisher<[ReadType], Error>
+    static func observe(predicate: NSPredicate?, sort: [NSSortDescriptor]?, limit: Int?) -> AnyPublisher<[ReadType], Error>
     
     /// Efficiently computes an integer value of table's field.
     ///

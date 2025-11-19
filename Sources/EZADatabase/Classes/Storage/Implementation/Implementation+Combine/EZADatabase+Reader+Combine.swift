@@ -46,8 +46,8 @@ extension EZADatabase: DatabaseReaderProtocolCombine where T: CoreDataCompatible
         return Reader<ReadType>.exportRemoteList(predicate: predicate, sort: sort)
     }
     
-    public static func observe(predicate: NSPredicate?, sort: [NSSortDescriptor]? = nil) -> AnyPublisher<[ReadType], Error> {
-        return Reader<ReadType>.observe(predicate: predicate, sort: sort)
+    public static func observe(predicate: NSPredicate?, sort: [NSSortDescriptor]? = nil, limit: Int? = nil) -> AnyPublisher<[ReadType], Error> {
+        return Reader<ReadType>.observe(predicate: predicate, sort: sort, limit: limit)
     }
     
     public static func fetchedResultsProvider(mainPredicate: NSPredicate,
