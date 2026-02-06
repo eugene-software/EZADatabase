@@ -47,7 +47,7 @@ extension CoreDataReader: DatabaseReaderProtocolAsync where ExportedType: CoreDa
 
         let controller = CoreDataStorageController.shared
         let result: [ReadTypeAsync.ManagedType]? = await controller.asyncList(predicate: predicate,
-                                                                          sortDescriptors: nil,
+                                                                          sortDescriptors: sort,
                                                                           fetchLimit: nil)
         let mapped = result?.compactMap { obj in
             return obj.getObject() as? ReadType
