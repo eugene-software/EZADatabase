@@ -34,18 +34,27 @@ private extension DispatchQueue {
     static let coreDataConcurrent: DispatchQueue = DispatchQueue(label: UUID().uuidString, qos: .userInitiated, attributes: .concurrent)
 }
 
+private class WeakContext {
+    weak var context: NSManagedObjectContext?
+    init(_ context: NSManagedObjectContext) {
+        self.context = context
+    }
+}
+
 class CoreDataStorageController: NSObject, @unchecked Sendable {
-    
+
     private static let kEZADatabaseModelName = "EZADatabaseModelName";
-    
+
     //Static Properties
     //
     static let shared: CoreDataStorageController = CoreDataStorageController()
-    
+
     //Private Properties
     //
 	private var persistentContainer: NSPersistentContainer?
     private var backgroundContext: NSManagedObjectContext?
+    private var trackedContexts: [WeakContext] = []
+    private let contextsLock = NSLock()
     
     //Public Properties
     //
@@ -55,7 +64,24 @@ class CoreDataStorageController: NSObject, @unchecked Sendable {
         let context = persistentContainer?.newBackgroundContext()
         context?.undoManager = nil
         context?.automaticallyMergesChangesFromParent = true
+        if let context {
+            trackContext(context)
+        }
         return context
+    }
+
+    private func trackContext(_ context: NSManagedObjectContext) {
+        contextsLock.lock()
+        defer { contextsLock.unlock() }
+        trackedContexts.removeAll { $0.context == nil }
+        trackedContexts.append(WeakContext(context))
+    }
+
+    func allTrackedContexts() -> [NSManagedObjectContext] {
+        contextsLock.lock()
+        defer { contextsLock.unlock() }
+        trackedContexts.removeAll { $0.context == nil }
+        return trackedContexts.compactMap { $0.context }
     }
 
 	var viewContext: NSManagedObjectContext {
@@ -376,16 +402,26 @@ private extension NSManagedObjectContext {
 
 private extension NSManagedObjectContext {
     
-    /// Executes the given `NSBatchDeleteRequest` and directly merges the changes to bring the given managed object context up to date.
+    /// Executes the given `NSBatchDeleteRequest` and directly merges the changes to bring all managed object contexts up to date.
     ///
     /// - Parameter batchDeleteRequest: The `NSBatchDeleteRequest` to execute.
     /// - Throws: An error if anything went wrong executing the batch deletion.
     func executeAndMergeChanges(using batchDeleteRequest: NSBatchDeleteRequest) throws {
-        
+
         batchDeleteRequest.resultType = .resultTypeObjectIDs
         let result = try execute(batchDeleteRequest) as? NSBatchDeleteResult
         let changes: [AnyHashable: Any] = [NSDeletedObjectsKey: result?.result as? [NSManagedObjectID] ?? []]
-        NSManagedObjectContext.mergeChanges(fromRemoteContextSave: changes, into: [self])
+
+        var contextsToMerge = [self]
+        let viewContext = CoreDataStorageController.shared.viewContext
+        if viewContext != self {
+            contextsToMerge.append(viewContext)
+        }
+        let trackedContexts = CoreDataStorageController.shared.allTrackedContexts()
+        for ctx in trackedContexts where ctx != self && ctx != viewContext {
+            contextsToMerge.append(ctx)
+        }
+        NSManagedObjectContext.mergeChanges(fromRemoteContextSave: changes, into: contextsToMerge)
     }
 }
 
