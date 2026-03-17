@@ -51,37 +51,11 @@ class CoreDataStorageController: NSObject, @unchecked Sendable {
 
     //Private Properties
     //
-	private var _persistentContainer: NSPersistentContainer?
-    private var _backgroundContext: NSManagedObjectContext?
+	private var persistentContainer: NSPersistentContainer?
+    private var backgroundContext: NSManagedObjectContext?
     private var trackedContexts: [WeakContext] = []
     private let contextsLock = NSLock()
-
-    private var persistentContainer: NSPersistentContainer? {
-        get {
-            contextsLock.lock()
-            defer { contextsLock.unlock() }
-            return _persistentContainer
-        }
-        set {
-            contextsLock.lock()
-            defer { contextsLock.unlock() }
-            _persistentContainer = newValue
-        }
-    }
-
-    private var backgroundContext: NSManagedObjectContext? {
-        get {
-            contextsLock.lock()
-            defer { contextsLock.unlock() }
-            return _backgroundContext
-        }
-        set {
-            contextsLock.lock()
-            defer { contextsLock.unlock() }
-            _backgroundContext = newValue
-        }
-    }
-
+    
     //Public Properties
     //
 	var isStoreLoaded: Bool { persistentContainer != nil }
@@ -151,19 +125,9 @@ class CoreDataStorageController: NSObject, @unchecked Sendable {
 extension CoreDataStorageController: CoreDataStorageInterface {
     
     func destroy() async throws {
-        if let bgContext = backgroundContext {
-            bgContext.performAndWait {
-                bgContext.reset()
-            }
-        }
-        let mainContext = viewContext
-        mainContext.performAndWait {
-            mainContext.reset()
-        }
-        defer {
-            backgroundContext = nil
-            persistentContainer = nil
-        }
+        backgroundContext?.reset()
+        viewContext.reset()
+        defer { backgroundContext = nil }
 		do {
 			guard let persistentContainer = persistentContainer else { throw NSError(domain: "EZADatabase", code: -1) }
 			let coordinator = persistentContainer.persistentStoreCoordinator
@@ -178,7 +142,7 @@ extension CoreDataStorageController: CoreDataStorageInterface {
     }
     
     func deleteAllTables(except names: [String]) async throws {
-		guard let context = backgroundContext else { throw EZADatabaseError.backgroundContextUnavailable }
+		let context = backgroundContext
 		guard let persistentContainer = persistentContainer else { throw EZADatabaseError.persistentContainerUnavailable }
 		let allEntitiyNames = persistentContainer.managedObjectModel.entities.compactMap { $0.name }
         let toBeRemoved = allEntitiyNames.filter { !names.contains($0) }
@@ -188,7 +152,7 @@ extension CoreDataStorageController: CoreDataStorageInterface {
                     for name in toBeRemoved {
                         let fetchRequest: NSFetchRequest<NSFetchRequestResult> = NSFetchRequest(entityName: name)
                         let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
-                        try context.executeAndMergeChanges(using: deleteRequest)
+                        try context?.executeAndMergeChanges(using: deleteRequest)
                     }
                     continuation.resume()
                 } catch {
@@ -210,7 +174,12 @@ extension CoreDataStorageController: CoreDataStorageInterface {
                 let result = context?.safeFetch(fetchRequest)
                 result?.forEach({ (obj) in
                     values.forEach { (key, value) in
-                        obj.setValue(value, forKeyPath: key)
+                        let old = obj.value(forKey: key)
+                        let oldString = String(describing: old)
+                        let newString = String(describing: value)
+                        if oldString != newString {
+                            obj.setValue(value, forKeyPath: key)
+                        }
                     }
                 })
             } completionBlock: {
@@ -221,32 +190,25 @@ extension CoreDataStorageController: CoreDataStorageInterface {
     
     func findRelation<Type: CoreDataExportable>(predicate: NSPredicate?) -> Type? {
 		guard let context = backgroundContext else { return nil }
-        var result: [Type]?
-        context.performAndWait {
-            result = query(predicate: predicate, context: context, sortDescriptors: nil, fetchLimit: 1)
-        }
+		let result: [Type]? = query(predicate: predicate, context: context, sortDescriptors: nil, fetchLimit: 1)
         return result?.first
     }
     
     func insertSync<Type: CoreDataCompatible>(object: Type?, predicate: NSPredicate?) -> Type.ManagedType? {
-
+        
         guard let object = object else { return nil }
 		let predicate = predicate ?? NSPredicate(key: Type.primaryKeyName, value: object.primaryKey)
 		guard let context = self.backgroundContext else { return nil }
-        var result: Type.ManagedType?
-        context.performAndWait {
-            result = self.insert(object: object, predicate: predicate, context: context)
-        }
-        return result
+		return self.insert(object: object, predicate: predicate, context: context)
     }
     
     func insertList<Type: CoreDataCompatible>(objects: [Type?]) async {
-        guard let context = backgroundContext else { return }
         let chunks = objects.compactMap{$0}.chunked(into: 1000)
         for chunk in chunks {
             await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
                 self.save {
                     chunk.forEach {
+					guard let context = self.backgroundContext else { return }
 					let predicate = NSPredicate(key: Type.primaryKeyName, value: $0.primaryKey)
 					self.insert(object: $0, predicate: predicate, context: context)
                     }
@@ -259,9 +221,9 @@ extension CoreDataStorageController: CoreDataStorageInterface {
     
     func insertAsync<Type: CoreDataCompatible>(object: Type?, predicate: NSPredicate?) async {
         guard let object = object else { return }
-        guard let context = backgroundContext else { return }
 		await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
 			self.save {
+				guard let context = self.backgroundContext else { return }
 				let predicate = predicate ?? NSPredicate(key: Type.primaryKeyName, value: object.primaryKey)
 				self.insert(object: object, predicate: predicate, context: context)
 			} completionBlock: {
@@ -273,11 +235,7 @@ extension CoreDataStorageController: CoreDataStorageInterface {
     func list<Type: CoreDataExportable>(predicate: NSPredicate?,
                                          sortDescriptors: [NSSortDescriptor]?,
                                          fetchLimit: Int?) -> [Type]? {
-        var result: [Type]?
-        viewContext.performAndWait {
-            result = query(predicate: predicate, context: viewContext, sortDescriptors: sortDescriptors, fetchLimit: fetchLimit)
-        }
-        return result
+        return query(predicate: predicate, context: viewContext, sortDescriptors: sortDescriptors, fetchLimit: fetchLimit)
     }
     
     func asyncList<Type: CoreDataExportable>(predicate: NSPredicate?,
@@ -294,7 +252,7 @@ extension CoreDataStorageController: CoreDataStorageInterface {
     }
     
     func delete<Type: CoreDataExportable>(_ type: Type.Type, with predicate: NSPredicate?) async throws {
-        guard let context = backgroundContext else { throw EZADatabaseError.backgroundContextUnavailable }
+        let context = backgroundContext
         let entityName = String(describing: Type.self)
         let fetchRequest = NSFetchRequest<NSFetchRequestResult>(entityName: entityName)
         fetchRequest.predicate = predicate
@@ -303,7 +261,7 @@ extension CoreDataStorageController: CoreDataStorageInterface {
             self.save {
                 do {
                     let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
-                    try context.executeAndMergeChanges(using: deleteRequest)
+                    try context?.executeAndMergeChanges(using: deleteRequest)
                     continuation.resume()
                 } catch {
                     continuation.resume(throwing: error)
@@ -315,28 +273,24 @@ extension CoreDataStorageController: CoreDataStorageInterface {
     }
     
     func compute<Type: CoreDataExportable>(_ type: Type.Type, operation: String, keyPath: String, predicate: NSPredicate?) -> Int? {
-
+        
         let context = viewContext
         let entityName = String(describing: Type.self)
         let fetchRequest = NSFetchRequest<NSDictionary>(entityName: entityName)
-
+        
         fetchRequest.predicate = predicate
         fetchRequest.resultType = .dictionaryResultType
-
+        
         let averageExpressionDesc = NSExpressionDescription()
         averageExpressionDesc.name = operation
-
+        
         let specialAvgExp = NSExpression(forKeyPath: keyPath)
         averageExpressionDesc.expression = NSExpression(forFunction: operation, arguments: [specialAvgExp])
         averageExpressionDesc.expressionResultType = .integer64AttributeType
-
+        
         fetchRequest.propertiesToFetch = [averageExpressionDesc]
-        var computedResult: Int?
-        context.performAndWait {
-            let result = context.safeFetch(fetchRequest)
-            computedResult = result?.first?[operation] as? Int
-        }
-        return computedResult
+        let result = context.safeFetch(fetchRequest)
+        return result?.first?[operation] as? Int
     }
 }
 
@@ -359,21 +313,16 @@ private extension CoreDataStorageController {
     
     @discardableResult
     func insert<Type: CoreDataCompatible>(object: Type?, predicate: NSPredicate?, context: NSManagedObjectContext) -> Type.ManagedType? {
-
-        guard let object = object else { return nil }
+        
         let entityName = String(describing: Type.ManagedType.self)
         let result: Type.ManagedType?
-
+        
         if let list: [Type.ManagedType] = query(predicate: predicate, context: context, fetchLimit: 1), !list.isEmpty {
             result = list.first
         } else {
             result = NSEntityDescription.insertNewObject(forEntityName: entityName, into: context) as? Type.ManagedType
         }
-        guard let exportObject = object as? Type.ManagedType.ExportType else {
-            print("[EZADatabase] Failed to cast \(Type.self) to \(Type.ManagedType.ExportType.self)")
-            return nil
-        }
-        result?.configure(with: exportObject, in: self)
+        result?.configure(with: object as! Type.ManagedType.ExportType, in: self)
         return result
     }
     
@@ -400,26 +349,24 @@ private extension CoreDataStorageController {
 private extension NSManagedObjectContext {
     
     func safeFetch<T>(_ request: NSFetchRequest<T>) -> [T]? where T : NSFetchRequestResult {
-
+        
         do {
             return try fetch(request)
         }
         catch {
-            print("[EZADatabase] safeFetch failed for entity '\(request.entityName ?? "unknown")': \(error)")
             return nil
         }
     }
     func saveContextInstantly() {
-
+        
         // Nothing to save
         //
         if !self.hasChanges { return }
-
+        
         do {
             try save()
         } catch {
-            print("[EZADatabase] Error saving context: \(error)")
-            assertionFailure("Error saving context: \(error)")
+            fatalError("Error  saving context: \(error)")
         }
     }
     
