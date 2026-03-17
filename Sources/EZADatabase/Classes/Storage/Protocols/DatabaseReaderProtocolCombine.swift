@@ -64,22 +64,6 @@ public protocol DatabaseReaderProtocolCombine {
     @discardableResult
     static func compute(_ type: ReadType.Type, operation: DatabaseReaderComputationOperation, keyPath: String, predicate: NSPredicate) -> Int?
     
-    /// FetchedResultsProvider object that efficiently adopts database obejcts to appropriate structures
-    ///
-    /// - Parameters:
-    ///   - type: Type of objects
-    ///   - mainPredicate: a main predicate to fetch objects
-    ///   - optionalPredicates: Optional predicates for additional filtering
-    ///   - sorting: Sort descriptors
-    ///   - sectionName: a field for sections
-    ///   - fetchLimit: fetch limit for request
-    /// - Returns: FetchedResultsProviderInterface object
-    ///
-    @MainActor static func fetchedResultsProvider(mainPredicate: NSPredicate,
-                                       optionalPredicates: [NSPredicate]?,
-                                       sorting sortDescriptors: [NSSortDescriptor],
-                                       sectionName: String?,
-                                       fetchLimit: Int?) -> FetchedResultsProvider<ReadType>?
 }
 
 

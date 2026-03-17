@@ -142,21 +142,6 @@ public protocol CoreDataStorageInterface {
     ///
     func compute<Type: CoreDataExportable>(_ type: Type.Type, operation: String, keyPath: String, predicate: NSPredicate?) -> Int?
     
-    /// Gives FetchedResultsProvider object for UI collections
-    /// - Parameters:
-    ///   - type: CoreDataCompatible object custom type
-    ///   - mainPredicate: a predicate for selecting data
-    ///   - optionalPredicates: predicates for filtering data.
-    ///   - sorting: sort descriptors for sorting
-    ///   - sectionName: sections name field for sorting by sections
-    ///   - fetchLimit: a limit to fetch
-    /// - Returns: a FetchedResultsProviderInterface for UI collections
-    ///
-    @MainActor func fetchedResultsProvider<Type: CoreDataCompatible>(mainPredicate: NSPredicate,
-                                                          optionalPredicates: [NSPredicate]?,
-                                                          sorting sortDescriptors: [NSSortDescriptor],
-                                                          sectionName: String?,
-                                                          fetchLimit: Int?) -> FetchedResultsProvider<Type>
 }
 
 public extension CoreDataStorageInterface {

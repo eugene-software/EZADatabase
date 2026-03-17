@@ -50,19 +50,6 @@ extension EZADatabase: DatabaseReaderProtocolCombine where T: CoreDataCompatible
         return Reader<ReadType>.observe(predicate: predicate, sort: sort, limit: limit)
     }
     
-    @MainActor public static func fetchedResultsProvider(mainPredicate: NSPredicate,
-                                       optionalPredicates: [NSPredicate]?,
-                                       sorting sortDescriptors: [NSSortDescriptor],
-                                       sectionName: String?,
-                                       fetchLimit: Int?) -> FetchedResultsProvider<ReadType>?
-    {
-        return Reader<ReadType>.fetchedResultsProvider(mainPredicate: mainPredicate,
-                                                       optionalPredicates: optionalPredicates,
-                                                       sorting: sortDescriptors,
-                                                       sectionName: sectionName,
-                                                       fetchLimit: fetchLimit)
-    }
-    
     public static func compute(_ type: ReadType.Type, operation: DatabaseReaderComputationOperation, keyPath: String, predicate: NSPredicate) -> Int? {
         return Reader<ReadType>.compute(type, operation: operation, keyPath: keyPath, predicate: predicate)
     }

@@ -240,23 +240,6 @@ extension CoreDataStorageController: CoreDataStorageInterface {
         return result
     }
     
-    @MainActor func fetchedResultsProvider<Type: CoreDataCompatible>(mainPredicate: NSPredicate,
-                                                          optionalPredicates: [NSPredicate]?,
-                                                          sorting sortDescriptors: [NSSortDescriptor],
-                                                          sectionName: String?,
-                                                          fetchLimit: Int?) -> FetchedResultsProvider<Type>
-    {
-        guard persistentContainer != nil else {
-            preconditionFailure("EZADatabase is not initialized. Call EZADatabase.openDatabase() before creating FetchedResultsProvider.")
-        }
-        return FetchedResultsProvider<Type>(mainPredicate,
-                                            optionalPredicates: optionalPredicates,
-                                            sorting: sortDescriptors,
-                                            context: viewContext,
-                                            sectionName: sectionName,
-                                            fetchLimit: fetchLimit)
-    }
-    
     func insertList<Type: CoreDataCompatible>(objects: [Type?]) async {
         guard let context = backgroundContext else { return }
         let chunks = objects.compactMap{$0}.chunked(into: 1000)

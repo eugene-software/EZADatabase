@@ -98,22 +98,6 @@ extension CoreDataReader: DatabaseReaderProtocolCombine where ExportedType: Core
             .eraseToAnyPublisher()
     }
     
-    @MainActor static func fetchedResultsProvider(mainPredicate: NSPredicate,
-                                       optionalPredicates: [NSPredicate]?,
-                                       sorting sortDescriptors: [NSSortDescriptor],
-                                       sectionName: String?,
-                                       fetchLimit: Int?) -> FetchedResultsProvider<ReadType>?
-    {
-        
-        let controller = CoreDataStorageController.shared
-        
-        return controller.fetchedResultsProvider(mainPredicate: mainPredicate,
-                                                 optionalPredicates: optionalPredicates,
-                                                 sorting: sortDescriptors,
-                                                 sectionName: sectionName,
-                                                 fetchLimit: fetchLimit)
-    }
-    
     static func compute(_ type: ReadType.Type, operation: DatabaseReaderComputationOperation, keyPath: String, predicate: NSPredicate) -> Int? {
         
         let controller = CoreDataStorageController.shared
