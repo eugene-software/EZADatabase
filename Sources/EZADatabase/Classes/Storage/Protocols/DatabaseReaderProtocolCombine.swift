@@ -75,7 +75,7 @@ public protocol DatabaseReaderProtocolCombine {
     ///   - fetchLimit: fetch limit for request
     /// - Returns: FetchedResultsProviderInterface object
     ///
-    static func fetchedResultsProvider(mainPredicate: NSPredicate,
+    @MainActor static func fetchedResultsProvider(mainPredicate: NSPredicate,
                                        optionalPredicates: [NSPredicate]?,
                                        sorting sortDescriptors: [NSSortDescriptor],
                                        sectionName: String?,

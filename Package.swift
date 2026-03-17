@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
     name: "EZADatabase",
     platforms: [
-            .iOS(.v13)
+            .iOS(.v15)
         ],
     products: [
         .library(
@@ -16,5 +16,8 @@ let package = Package(
         .target(
             name: "EZADatabase",
             dependencies: []),
+        .testTarget(
+            name: "EZADatabaseTests",
+            dependencies: ["EZADatabase"]),
     ]
 )

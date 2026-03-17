@@ -1,5 +1,5 @@
 //
-//  DatabaseReaderProtocolCombine.swift
+//  DatabaseReaderProtocolAsync.swift
 //  EZADatabase
 //
 //  Created by Eugeniy Zaychenko on 09.10.2025.

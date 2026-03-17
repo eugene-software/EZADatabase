@@ -60,50 +60,64 @@ struct FetchPublisher<T: NSManagedObject>: Publisher {
 
 class FetchSubscription<T: NSManagedObject, S: Subscriber>: NSObject, Subscription, NSFetchedResultsControllerDelegate
 where S.Input == [T], S.Failure == Error {
-    private var request: NSFetchRequest<T>
-    private var context: NSManagedObjectContext
+    private var request: NSFetchRequest<T>?
+    private var context: NSManagedObjectContext?
     private var subscriber: S?
-    private var cancellable: AnyCancellable?
     private var resultsController: NSFetchedResultsController<T>?
-    
+
     init(request: NSFetchRequest<T>, context: NSManagedObjectContext, subscriber: S) {
-        
+
         self.request = request
         self.context = context
         self.subscriber = subscriber
         super.init()
         setupObserver()
     }
-    
-    private func setupObserver() {
-        resultsController = .init(fetchRequest: request, managedObjectContext: context, sectionNameKeyPath: nil, cacheName: nil)
-        resultsController?.delegate = self
-        do {
-            try resultsController?.performFetch()
-            context.perform { [weak self] in
-                guard let self else { return }
-                _ = subscriber?.receive(resultsController?.fetchedObjects ?? [])
-            }
-        } catch {
-            context.perform { [weak self] in
-                self?.subscriber?.receive(completion: .failure(error))
-            }
-        }
-    }
-    
+
     func request(_ demand: Subscribers.Demand) {
         // No implementation needed, we fetch data on changes automatically
     }
-    
+
     func cancel() {
-        subscriber = nil
-        cancellable?.cancel()
+        context?.perform { [weak self] in
+            guard let self else { return }
+            resultsController?.delegate = nil
+            resultsController = nil
+            subscriber = nil
+            request = nil
+            context = nil
+        }
     }
-    
+
     public func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+        guard let context else { return }
         context.perform { [weak self] in
             guard let self else { return }
             _ = subscriber?.receive(resultsController?.fetchedObjects ?? [])
+        }
+    }
+}
+
+private extension FetchSubscription {
+
+    func setupObserver() {
+        guard let context, let request else { return }
+        context.perform { [weak self] in
+            guard let self else { return }
+            let controller = NSFetchedResultsController(
+                fetchRequest: request,
+                managedObjectContext: context,
+                sectionNameKeyPath: nil,
+                cacheName: nil
+            )
+            controller.delegate = self
+            resultsController = controller
+            do {
+                try controller.performFetch()
+                _ = subscriber?.receive(controller.fetchedObjects ?? [])
+            } catch {
+                subscriber?.receive(completion: .failure(error))
+            }
         }
     }
 }

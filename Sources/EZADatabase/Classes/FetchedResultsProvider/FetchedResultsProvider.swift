@@ -30,7 +30,8 @@ import CoreData
 import Combine
 import UIKit
 
-public class FetchedResultsProvider<U: CoreDataCompatible>: NSObject, @unchecked Sendable {
+@MainActor
+public class FetchedResultsProvider<U: CoreDataCompatible>: NSObject {
     
     private var cancellables: [AnyCancellable] = []
     
@@ -41,6 +42,8 @@ public class FetchedResultsProvider<U: CoreDataCompatible>: NSObject, @unchecked
     
     public weak var delegate: FetchedResultsProviderDelegate? {
         didSet {
+            cancellables.removeAll()
+            diffableFRCDelegate = nil
             classicFRCDelegate = ClassicFRCDelegate()
             fetchedResultsController?.delegate = classicFRCDelegate
             observeClassicFRCDelegate()
@@ -48,12 +51,16 @@ public class FetchedResultsProvider<U: CoreDataCompatible>: NSObject, @unchecked
         }
     }
     
+    private var isDiffableSetUp = false
+
     public var diffableDataSourcePublisher: AnyPublisher<NSDiffableDataSourceSnapshot<String, U>?, Never> {
         diffableDataSourceSubject.handleEvents(receiveSubscription: {[weak self] _ in
-            self?.diffableFRCDelegate = DiffableFRCDelegate()
-            self?.fetchedResultsController?.delegate = self?.diffableFRCDelegate
-            self?.observeDiffableFRCDelegate()
-            self?.reloadFetchController()
+            guard let self, !isDiffableSetUp else { return }
+            isDiffableSetUp = true
+            diffableFRCDelegate = DiffableFRCDelegate()
+            fetchedResultsController?.delegate = diffableFRCDelegate
+            observeDiffableFRCDelegate()
+            reloadFetchController()
         })
         .eraseToAnyPublisher()
     }
@@ -99,7 +106,7 @@ public extension FetchedResultsProvider {
     }
     
     var allObjects: [U]? {
-        return fetchedResultsController?.fetchedObjects?.map { $0.getObject() as! U }
+        return fetchedResultsController?.fetchedObjects?.compactMap { $0.getObject() as? U }
     }
     
     func configure(limit: Int?) {
@@ -119,7 +126,7 @@ public extension FetchedResultsProvider {
     func add(predicate: NSPredicate?) {
         
         guard let predicate = predicate else { return }
-        optionalPredicates?.append(predicate)
+        optionalPredicates = (optionalPredicates ?? []) + [predicate]
         reloadFetchController()
     }
     
@@ -193,9 +200,7 @@ private extension FetchedResultsProvider {
         
         do {
             try fetchedResultsController?.performFetch()
-            DispatchQueue.main.async { [weak self] in
-                self?.delegate?.didReloadContent()
-            }
+            delegate?.didReloadContent()
             
         } catch {
             print(error)
@@ -219,60 +224,56 @@ private extension FetchedResultsProvider {
     }
     
     func observeClassicFRCDelegate() {
-        
-        Task {
-            await MainActor.run {
-                classicFRCDelegate?.willChangePublisher
-                    .sink { [weak self] _ in
-                        self?.delegate?.willUpdateList()
-                    }
-                    .store(in: &cancellables)
-                
-                classicFRCDelegate?.didChangePublisher
-                    .sink {[weak self] _ in
-                        self?.delegate?.didUpdateList()
-                    }
-                    .store(in: &cancellables)
-                
-                classicFRCDelegate?.didChangeObjectChangePublisher
-                    .sink {[weak self] event in
-                        
-                        switch event.type {
-                        case .insert:
-                            self?.delegate?.insertObject(at: event.newIndexPath)
-                        case .delete:
-                            self?.delegate?.deleteObject(at: event.indexPath)
-                        case .move:
-                            if event.indexPath == event.newIndexPath {
-                                self?.delegate?.updateObject(at: event.indexPath)
-                            } else {
-                                self?.delegate?.moveObject(from: event.indexPath, to: event.newIndexPath)
-                            }
-                        case .update:
-                            self?.delegate?.updateObject(at: event.indexPath)
-                        @unknown default:
-                            self?.delegate?.didReloadContent()
-                        }
-                        
-                    }
-                    .store(in: &cancellables)
-                
-                classicFRCDelegate?.didChangeSectionChangePublisher
-                    .sink {[weak self] event in
-                        switch event.type {
-                        case .insert:
-                            self?.delegate?.insert(section: event.sectionIndex)
-                        case .delete:
-                            self?.delegate?.delete(section: event.sectionIndex)
-                        case .move: break
-                        case .update:
-                            self?.delegate?.update(section: event.sectionIndex)
-                        @unknown default:
-                            self?.delegate?.didReloadContent()
-                        }
-                    }
-                    .store(in: &cancellables)
+
+        classicFRCDelegate?.willChangePublisher
+            .sink { [weak self] _ in
+                self?.delegate?.willUpdateList()
             }
-        }
+            .store(in: &cancellables)
+
+        classicFRCDelegate?.didChangePublisher
+            .sink {[weak self] _ in
+                self?.delegate?.didUpdateList()
+            }
+            .store(in: &cancellables)
+
+        classicFRCDelegate?.didChangeObjectChangePublisher
+            .sink {[weak self] event in
+
+                switch event.type {
+                case .insert:
+                    self?.delegate?.insertObject(at: event.newIndexPath)
+                case .delete:
+                    self?.delegate?.deleteObject(at: event.indexPath)
+                case .move:
+                    if event.indexPath == event.newIndexPath {
+                        self?.delegate?.updateObject(at: event.indexPath)
+                    } else {
+                        self?.delegate?.moveObject(from: event.indexPath, to: event.newIndexPath)
+                    }
+                case .update:
+                    self?.delegate?.updateObject(at: event.indexPath)
+                @unknown default:
+                    self?.delegate?.didReloadContent()
+                }
+
+            }
+            .store(in: &cancellables)
+
+        classicFRCDelegate?.didChangeSectionChangePublisher
+            .sink {[weak self] event in
+                switch event.type {
+                case .insert:
+                    self?.delegate?.insert(section: event.sectionIndex)
+                case .delete:
+                    self?.delegate?.delete(section: event.sectionIndex)
+                case .move: break
+                case .update:
+                    self?.delegate?.update(section: event.sectionIndex)
+                @unknown default:
+                    self?.delegate?.didReloadContent()
+                }
+            }
+            .store(in: &cancellables)
     }
 }

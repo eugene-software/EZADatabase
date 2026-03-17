@@ -39,9 +39,7 @@ import UIKit
 
 public extension CollectionViewFetchedResultsProviderDelegate {
 
-    func didFinishAnimation() {
-         collectionView.reloadData()
-    }
+    func didFinishAnimation() {}
 
     func didReloadContent() {
         collectionView.reloadData()

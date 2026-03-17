@@ -34,24 +34,19 @@ extension EZADatabase: DatabaseWriterProtocolAsync where T: CoreDataCompatible {
     public typealias WriteTypeAsync = T
     private typealias Writer = CoreDataWriter
 
-    @discardableResult
     public static func deleteEntities(_ entity: WriteType.Type, predicate: NSPredicate?) async throws {
          try await Writer<WriteTypeAsync>.deleteEntities(entity, predicate: predicate)
     }
-    
-    @discardableResult
+
     public static func updateRemote(_ objectToImport: WriteType?, predicate: NSPredicate?) async throws {
         try await Writer<WriteTypeAsync>.updateRemote(objectToImport, predicate: predicate)
     }
-    
-    @discardableResult
+
     public static func importRemoteList(_ objectsToImport: [WriteType?]) async throws {
         try await Writer<WriteTypeAsync>.importRemoteList(objectsToImport)
     }
-    
-    @discardableResult
+
     public static func importValues(_ entity: WriteType.Type, predicate: NSPredicate?, values:  [String: Any]) async throws {
         try await Writer<WriteTypeAsync>.importValues(entity, predicate: predicate, values: values)
     }
 }
-

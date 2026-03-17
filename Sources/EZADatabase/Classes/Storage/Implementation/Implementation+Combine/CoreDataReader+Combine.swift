@@ -98,7 +98,7 @@ extension CoreDataReader: DatabaseReaderProtocolCombine where ExportedType: Core
             .eraseToAnyPublisher()
     }
     
-    static func fetchedResultsProvider(mainPredicate: NSPredicate,
+    @MainActor static func fetchedResultsProvider(mainPredicate: NSPredicate,
                                        optionalPredicates: [NSPredicate]?,
                                        sorting sortDescriptors: [NSSortDescriptor],
                                        sectionName: String?,

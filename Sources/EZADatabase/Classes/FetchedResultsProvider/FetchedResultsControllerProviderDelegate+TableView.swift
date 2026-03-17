@@ -43,9 +43,7 @@ public extension TableViewFetchedResultsProviderDelegate {
 
     var animationType: UITableView.RowAnimation { .fade }
 
-    func didFinishAnimation() {
-         tableView.reloadData()
-    }
+    func didFinishAnimation() {}
 
     func didReloadContent() { tableView.reloadData() }
 

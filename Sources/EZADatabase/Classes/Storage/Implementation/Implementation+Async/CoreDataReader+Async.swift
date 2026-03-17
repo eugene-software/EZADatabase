@@ -36,13 +36,13 @@ extension CoreDataReader: DatabaseReaderProtocolAsync where ExportedType: CoreDa
     static func exportRemote(predicate: NSPredicate?, sort: [NSSortDescriptor]?) async throws -> ReadTypeAsync? {
 
         let controller = CoreDataStorageController.shared
-        let result: [ReadTypeAsync.ManagedType]? = try await controller.asyncList(predicate: predicate,
+        let result: [ReadTypeAsync.ManagedType]? = await controller.asyncList(predicate: predicate,
                                                                           sortDescriptors: sort,
                                                                           fetchLimit: 1)
         let object = result?.first?.getObject() as? ReadTypeAsync
         return object
     }
-    
+
     static func exportRemoteList(predicate: NSPredicate?, sort: [NSSortDescriptor]?) async throws -> [ReadTypeAsync]? {
 
         let controller = CoreDataStorageController.shared
@@ -50,7 +50,7 @@ extension CoreDataReader: DatabaseReaderProtocolAsync where ExportedType: CoreDa
                                                                           sortDescriptors: sort,
                                                                           fetchLimit: nil)
         let mapped = result?.compactMap { obj in
-            return obj.getObject() as? ReadType
+            return obj.getObject() as? ReadTypeAsync
         }
         return mapped
     }

@@ -152,7 +152,7 @@ public protocol CoreDataStorageInterface {
     ///   - fetchLimit: a limit to fetch
     /// - Returns: a FetchedResultsProviderInterface for UI collections
     ///
-    func fetchedResultsProvider<Type: CoreDataCompatible>(mainPredicate: NSPredicate,
+    @MainActor func fetchedResultsProvider<Type: CoreDataCompatible>(mainPredicate: NSPredicate,
                                                           optionalPredicates: [NSPredicate]?,
                                                           sorting sortDescriptors: [NSSortDescriptor],
                                                           sectionName: String?,

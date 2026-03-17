@@ -26,7 +26,6 @@
 //
 
 import Foundation
-import UIKit
 import CoreData
 import Combine
 
@@ -40,9 +39,9 @@ public extension EZADatabase where T == Any {
     static func openDatabase() {
         CoreDataStorageController.shared.loadStore()
     }
-    
+
     static func deleteDatabase(keeping tablesToKeep: [NSManagedObject.Type]) -> AnyPublisher<Void, Error> {
-        
+
         return Deferred {
             Future { promise in
                 let tablesToKeepNames = tablesToKeep.map { String(describing: $0) }
@@ -58,7 +57,7 @@ public extension EZADatabase where T == Any {
         }
         .eraseToAnyPublisher()
     }
-    
+
     static func reloadDatabase() -> AnyPublisher<Void, Error> {
         return deleteDatabase(keeping: [])
             .map {
@@ -66,9 +65,9 @@ public extension EZADatabase where T == Any {
             }
             .eraseToAnyPublisher()
     }
-    
+
     static func destroyDatabase() -> AnyPublisher<Void, Error> {
-        
+
         return Deferred {
             Future { promise in
                 Task {
